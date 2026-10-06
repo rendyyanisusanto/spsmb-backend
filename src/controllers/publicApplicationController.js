@@ -18,11 +18,13 @@ class PublicApplicationController {
       const {
         fullName, gender, whatsapp, parentName, address,
         previousSchool, registrationType, formalInstitutionId,
-        informationSourceId, informationSourceOther
+        informationSourceId, informationSourceOther, birthPlace, birthDate
       } = req.body;
 
       if (!fullName || !fullName.trim()) return res.status(422).json({ success: false, message: 'Nama Lengkap wajib diisi.' });
       if (!gender || !['MALE', 'FEMALE'].includes(gender)) return res.status(422).json({ success: false, message: 'Jenis Kelamin tidak valid.' });
+      if (!birthPlace || !birthPlace.trim()) return res.status(422).json({ success: false, message: 'Tempat Lahir wajib diisi.' });
+      if (!birthDate) return res.status(422).json({ success: false, message: 'Tanggal Lahir wajib diisi.' });
       if (!whatsapp || !whatsapp.trim()) return res.status(422).json({ success: false, message: 'No. WhatsApp wajib diisi.' });
       if (!parentName || !parentName.trim()) return res.status(422).json({ success: false, message: 'Nama Orang Tua / Wali wajib diisi.' });
       if (!address || !address.trim()) return res.status(422).json({ success: false, message: 'Alamat Lengkap wajib diisi.' });
@@ -44,7 +46,9 @@ class PublicApplicationController {
         registrationType,
         formalInstitutionId,
         informationSourceId,
-        informationSourceOther
+        informationSourceOther,
+        birthPlace: birthPlace.trim().substring(0, 100),
+        birthDate
       });
 
       const receipt = await applicationService.getReceipt(result.registrationNumber, result.continueToken);

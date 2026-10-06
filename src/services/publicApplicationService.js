@@ -38,7 +38,9 @@ class PublicApplicationService {
         address: data.address,
         previous_school: data.previousSchool,
         information_source_id: data.informationSourceId,
-        information_source_other: data.informationSourceOther
+        information_source_other: data.informationSourceOther,
+        birth_place: data.birthPlace,
+        birth_date: data.birthDate
       }, connection);
 
       // 4. Insert Guardian
