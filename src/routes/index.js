@@ -18,6 +18,7 @@ const formRoutes = require('./formRoutes');
 const documentRoutes = require('./documentRoutes');
 const whatsappTemplateRoutes = require('./whatsappTemplateRoutes');
 const applicationRoutes = require('./applicationRoutes');
+const dashboardRoutes = require('./dashboardRoutes');
 
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
@@ -33,6 +34,7 @@ router.use('/', formRoutes);
 router.use('/', documentRoutes);
 router.use('/whatsapp-templates', whatsappTemplateRoutes);
 router.use('/applications', applicationRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 router.get('/health', asyncHandler(async (req, res) => {
   let dbStatus = 'disconnected'
