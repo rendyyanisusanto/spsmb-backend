@@ -1,5 +1,6 @@
-
 const service = require('../services/whatsappTemplateService');
+const auditService = require('../services/auditService');
+const { AUDIT_ACTIONS } = require('../constants/auditActions');
 const resolver = require('../services/whatsappTemplateResolver');
 const events = require('../constants/whatsappEvents');
 const { allVariables } = require('../constants/whatsappVariables');
@@ -22,6 +23,7 @@ exports.getById = async (req, res, next) => {
 exports.create = async (req, res, next) => {
   try {
     const result = await service.create(req.body, req.user);
+    await auditService.log(AUDIT_ACTIONS.WHATSAPP_TEMPLATE_CREATE, 'WHATSAPP_TEMPLATE', result.id, 'Template WhatsApp dibuat.', req);
     res.status(201).json({ success: true, message: 'Template berhasil dibuat', data: result });
   } catch (error) { next(error); }
 };
@@ -29,6 +31,7 @@ exports.create = async (req, res, next) => {
 exports.update = async (req, res, next) => {
   try {
     const result = await service.update(req.params.id, req.body, req.user);
+    await auditService.log(AUDIT_ACTIONS.WHATSAPP_TEMPLATE_UPDATE, 'WHATSAPP_TEMPLATE', req.params.id, 'Template WhatsApp diperbarui.', req);
     res.json({ success: true, message: 'Template berhasil diperbarui', data: result });
   } catch (error) { next(error); }
 };
@@ -36,6 +39,7 @@ exports.update = async (req, res, next) => {
 exports.updateStatus = async (req, res, next) => {
   try {
     const result = await service.updateStatus(req.params.id, req.body.isActive, req.user);
+    await auditService.log(AUDIT_ACTIONS.WHATSAPP_TEMPLATE_UPDATE, 'WHATSAPP_TEMPLATE', req.params.id, `Status template WhatsApp diubah menjadi ${req.body.isActive}.`, req);
     res.json({ success: true, message: 'Status berhasil diperbarui', data: result });
   } catch (error) { next(error); }
 };
@@ -43,6 +47,7 @@ exports.updateStatus = async (req, res, next) => {
 exports.duplicate = async (req, res, next) => {
   try {
     const result = await service.duplicate(req.params.id, req.body, req.user);
+    await auditService.log(AUDIT_ACTIONS.WHATSAPP_TEMPLATE_CREATE, 'WHATSAPP_TEMPLATE', result.id, 'Template WhatsApp diduplikasi.', req);
     res.status(201).json({ success: true, message: 'Template berhasil diduplikasi', data: result });
   } catch (error) { next(error); }
 };
@@ -50,6 +55,7 @@ exports.duplicate = async (req, res, next) => {
 exports.useGlobal = async (req, res, next) => {
   try {
     const result = await service.useGlobal(req.params.id, req.user);
+    await auditService.log(AUDIT_ACTIONS.WHATSAPP_TEMPLATE_UPDATE, 'WHATSAPP_TEMPLATE', req.params.id, 'Template lembaga dinonaktifkan.', req);
     res.json({ success: true, message: 'Template lembaga dinonaktifkan, menggunakan template global', data: result });
   } catch (error) { next(error); }
 };
@@ -57,6 +63,7 @@ exports.useGlobal = async (req, res, next) => {
 exports.remove = async (req, res, next) => {
   try {
     await service.remove(req.params.id, req.user);
+    await auditService.log(AUDIT_ACTIONS.WHATSAPP_TEMPLATE_DELETE, 'WHATSAPP_TEMPLATE', req.params.id, 'Template WhatsApp dihapus.', req);
     res.json({ success: true, message: 'Template berhasil dihapus' });
   } catch (error) { next(error); }
 };

@@ -47,6 +47,14 @@ class ApplicationController {
 
     const result = await applicationService.exportApplications(params, req.user);
     
+    await require('../services/auditService').log(
+      require('../constants/auditActions').AUDIT_ACTIONS.EXPORT,
+      'REPORT',
+      null,
+      `User melakukan export laporan pendaftar.`,
+      req
+    );
+
     return successResponse(res, 200, 'Applications export data retrieved successfully', result);
   });
 

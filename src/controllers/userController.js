@@ -1,4 +1,6 @@
 const userService = require('../services/userService');
+const auditService = require('../services/auditService');
+const { AUDIT_ACTIONS } = require('../constants/auditActions');
 
 const getUsers = async (req, res) => {
   try {
@@ -30,6 +32,15 @@ const getUserById = async (req, res) => {
 const createUser = async (req, res) => {
   try {
     const user = await userService.createUser(req.body);
+    
+    await auditService.log(
+      AUDIT_ACTIONS.USER_CREATE,
+      'USER',
+      user.id,
+      `Data user "${user.username}" berhasil dibuat.`,
+      req
+    );
+
     res.status(201).json({
       success: true,
       message: 'User berhasil dibuat.',
@@ -43,6 +54,15 @@ const createUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const user = await userService.updateUser(req.params.id, req.body);
+
+    await auditService.log(
+      AUDIT_ACTIONS.USER_UPDATE,
+      'USER',
+      user.id,
+      `Data user "${user.username}" diperbarui.`,
+      req
+    );
+
     res.json({
       success: true,
       message: 'User berhasil diperbarui.',
@@ -57,6 +77,15 @@ const updateStatus = async (req, res) => {
   try {
     const { isActive } = req.body;
     await userService.updateStatus(req.params.id, isActive, req.user.id);
+    
+    await auditService.log(
+      AUDIT_ACTIONS.USER_STATUS_CHANGE,
+      'USER',
+      req.params.id,
+      `Status user diperbarui menjadi ${isActive ? 'aktif' : 'tidak aktif'}.`,
+      req
+    );
+
     res.json({
       success: true,
       message: 'Status user berhasil diperbarui.'
@@ -70,6 +99,15 @@ const resetPassword = async (req, res) => {
   try {
     const { password, passwordConfirmation } = req.body;
     await userService.resetPassword(req.params.id, password, passwordConfirmation);
+    
+    await auditService.log(
+      AUDIT_ACTIONS.USER_PASSWORD_RESET,
+      'USER',
+      req.params.id,
+      `Password user direset.`,
+      req
+    );
+
     res.json({
       success: true,
       message: 'Password berhasil direset.'

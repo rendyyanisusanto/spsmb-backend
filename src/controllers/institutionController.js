@@ -1,4 +1,6 @@
 const institutionService = require('../services/institutionService');
+const auditService = require('../services/auditService');
+const { AUDIT_ACTIONS } = require('../constants/auditActions');
 
 const getInstitutions = async (req, res) => {
   try {
@@ -32,6 +34,15 @@ const getInstitutionById = async (req, res) => {
 const createInstitution = async (req, res) => {
   try {
     const data = await institutionService.createInstitution(req.user, req.body);
+    
+    await auditService.log(
+      AUDIT_ACTIONS.CREATE,
+      'INSTITUTION',
+      data.id,
+      `Data lembaga "${data.name}" berhasil dibuat.`,
+      req
+    );
+
     res.status(201).json({ success: true, message: 'Lembaga berhasil dibuat', data });
   } catch (error) {
     if (error.message === 'FORBIDDEN') return res.status(403).json({ success: false, message: 'Akses ditolak.' });
@@ -42,6 +53,15 @@ const createInstitution = async (req, res) => {
 const updateInstitution = async (req, res) => {
   try {
     const data = await institutionService.updateInstitution(req.user, req.params.id, req.body);
+    
+    await auditService.log(
+      AUDIT_ACTIONS.UPDATE,
+      'INSTITUTION',
+      req.params.id,
+      `Data lembaga "${data.name}" diperbarui.`,
+      req
+    );
+
     res.json({ success: true, message: 'Lembaga berhasil diperbarui', data });
   } catch (error) {
     if (error.message === 'FORBIDDEN') return res.status(403).json({ success: false, message: 'Akses ditolak.' });
@@ -54,6 +74,15 @@ const updateStatus = async (req, res) => {
   try {
     const { isActive } = req.body;
     await institutionService.updateStatus(req.user, req.params.id, isActive);
+    
+    await auditService.log(
+      AUDIT_ACTIONS.UPDATE,
+      'INSTITUTION',
+      req.params.id,
+      `Status lembaga diperbarui menjadi ${isActive ? 'aktif' : 'tidak aktif'}.`,
+      req
+    );
+
     res.json({ success: true, message: 'Status lembaga berhasil diperbarui' });
   } catch (error) {
     if (error.message === 'FORBIDDEN') return res.status(403).json({ success: false, message: 'Akses ditolak.' });

@@ -1,6 +1,8 @@
 const service = require('../services/publicDocumentService');
 const appRepo = require('../repositories/applicationRepository');
 const tokenService = require('../services/continueTokenService');
+const auditService = require('../services/auditService');
+const { AUDIT_ACTIONS } = require('../constants/auditActions');
 
 class PublicDocumentController {
   async validateAccess(req, res) {
@@ -48,6 +50,15 @@ class PublicDocumentController {
       }
 
       await service.uploadDocument(application, documentTypeId, req.file);
+      
+      await auditService.log(
+        AUDIT_ACTIONS.DOCUMENT_UPLOAD,
+        'DOCUMENT',
+        documentTypeId,
+        `Dokumen untuk application #${application.id} diupload/diperbarui.`,
+        req
+      );
+
       res.json({ success: true, message: 'Dokumen berhasil diupload' });
     } catch (err) {
       next(err);
@@ -60,6 +71,15 @@ class PublicDocumentController {
       const { documentTypeId } = req.params;
 
       await service.deleteDocument(application, documentTypeId);
+      
+      await auditService.log(
+        AUDIT_ACTIONS.DOCUMENT_UPDATE,
+        'DOCUMENT',
+        documentTypeId,
+        `Dokumen untuk application #${application.id} dihapus.`,
+        req
+      );
+
       res.json({ success: true, message: 'Dokumen berhasil dihapus' });
     } catch (err) {
       next(err);
