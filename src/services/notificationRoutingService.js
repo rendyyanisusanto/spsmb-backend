@@ -19,8 +19,10 @@ class NotificationRoutingService {
         a.id, a.registration_number, a.applicant_id, a.registration_type,
         a.formal_institution_id, a.pondok_institution_id, a.status,
         a.step_completed, a.continue_token_hash, a.continue_token_expires_at,
+        a.created_at,
         ap.full_name as student_name, ap.gender, ap.whatsapp as applicant_whatsapp,
         ap.address as applicant_address, ap.previous_school,
+        ap.birth_place, ap.birth_date,
         fi.name as formal_institution_name, fi.code as formal_institution_code,
         pi.name as pondok_institution_name, pi.code as pondok_institution_code
       FROM applications a

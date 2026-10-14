@@ -144,8 +144,9 @@ class NotificationEngineService {
         if (isParentOrApplicant) {
           messageToSend = hasComposedMessage ? composedResult.composedMessage : standardRenderedMessage;
         } else {
-          // Internal admin: uses their specific institution/global message, never combines parent texts
-          messageToSend = standardRenderedMessage || (hasComposedMessage ? composedResult.composedMessage : '');
+          // Internal admin (SUPER_ADMIN, INSTITUTION_ADMIN): detail pendaftar lengkap statis
+          const adminCustomMsg = this.formatAdminMessage(context, eventCode, recipient);
+          messageToSend = adminCustomMsg || standardRenderedMessage || (hasComposedMessage ? composedResult.composedMessage : '');
         }
 
         if (!messageToSend || messageToSend.trim() === '') {
@@ -181,6 +182,16 @@ class NotificationEngineService {
       summary.reason = `INTERNAL_ENGINE_ERROR: ${err.message}`;
       return summary;
     }
+  }
+
+  /**
+   * Format message for internal administrator notification
+   */
+  formatAdminMessage(context, eventCode, recipient) {
+    if (this.composer && typeof this.composer.formatAdminNotification === 'function') {
+      return this.composer.formatAdminNotification(context, eventCode, recipient);
+    }
+    return defaultComposer.formatAdminNotification(context, eventCode, recipient);
   }
 
   /**

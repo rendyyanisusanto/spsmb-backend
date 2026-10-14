@@ -316,6 +316,124 @@ class WhatsAppTemplateComposer {
       }
     };
   }
+
+  /**
+   * Format complete registrant detail notification message for administrators
+   */
+  formatAdminNotification(context, eventCode = 'REGISTRATION_CREATED') {
+    if (!context) return '';
+
+    const isFinalSubmit = eventCode === 'REGISTRATION_SUBMITTED' || eventCode === 'FULL_REGISTRATION_SUBMITTED';
+
+    const header = isFinalSubmit
+      ? '🔔 *NOTIFIKASI PENDAFTARAN LENGKAP - SPSMB*'
+      : '🔔 *NOTIFIKASI PENDAFTAR BARU - SPSMB*';
+
+    const subHeader = isFinalSubmit
+      ? 'Formulir pendaftaran lengkap dan berkas pendaftar telah berhasil dikirimkan:'
+      : 'Ada pendaftar baru yang telah membuat akun pendaftaran:';
+
+    const formatGender = (gender) => {
+      if (!gender) return '-';
+      if (gender === 'MALE' || gender === 'L' || gender === 'Laki-laki') return 'Laki-laki';
+      if (gender === 'FEMALE' || gender === 'P' || gender === 'Perempuan') return 'Perempuan';
+      return gender;
+    };
+
+    const formatRegType = (type) => {
+      const map = {
+        'NON_FORMAL': 'Non Formal',
+        'SMP': 'SMP IT Asy-Syadzili',
+        'SMA': 'SMA IT Asy-Syadzili',
+        'SMK': 'SMK IT Asy-Syadzili'
+      };
+      return map[type] || type || '-';
+    };
+
+    // Guardian details
+    let guardianName = '-';
+    let guardianPhone = '-';
+    let guardianRel = 'Wali';
+
+    if (context.guardians && context.guardians.length > 0) {
+      const g = context.guardians.find(item => item.name) || context.guardians[0];
+      guardianName = g.name || '-';
+      guardianPhone = g.phone || '-';
+      if (g.relationship === 'FATHER') guardianRel = 'Ayah';
+      else if (g.relationship === 'MOTHER') guardianRel = 'Ibu';
+      else if (g.relationship === 'GUARDIAN') guardianRel = 'Wali';
+    } else {
+      guardianName = context.parent_name || context.guardian_name || '-';
+      guardianPhone = context.guardian_phone || '-';
+    }
+
+    // Birth details
+    let birthInfo = '-';
+    if (context.birth_place && context.birth_date) {
+      const d = new Date(context.birth_date);
+      const dateFormatted = !isNaN(d.getTime())
+        ? d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+        : context.birth_date;
+      birthInfo = `${context.birth_place}, ${dateFormatted}`;
+    } else if (context.birth_place) {
+      birthInfo = context.birth_place;
+    } else if (context.birth_date) {
+      const d = new Date(context.birth_date);
+      birthInfo = !isNaN(d.getTime())
+        ? d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+        : context.birth_date;
+    }
+
+    // Registration date/time
+    let regDate = '-';
+    if (context.created_at) {
+      const d = new Date(context.created_at);
+      regDate = !isNaN(d.getTime())
+        ? d.toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : context.created_at;
+    } else if (context.registration_date) {
+      regDate = context.registration_date;
+    }
+
+    // Institutions
+    let formalName = context.formal_institution_name;
+    if (!formalName) {
+      if (context.registration_type === 'NON_FORMAL') {
+        formalName = 'Non Formal (Hanya Pondok)';
+      } else {
+        formalName = formatRegType(context.registration_type);
+      }
+    }
+
+    const pondokName = context.pondok_institution_name || (context.gender === 'FEMALE' || context.gender === 'P' || context.gender === 'Perempuan' ? 'Pondok Pesantren Asy-Syadzili 2 (Putri)' : 'Pondok Pesantren Asy-Syadzili 1 (Putra)');
+
+    return `${header}
+
+${subHeader}
+
+📝 *Detail Calon Santri:*
+• *Nomor Registrasi:* ${context.registration_number || '-'}
+• *Nama Lengkap:* ${context.student_name || context.applicant_name || context.full_name || '-'}
+• *Jenis Kelamin:* ${formatGender(context.gender)}
+• *TTL:* ${birthInfo}
+• *No. WhatsApp:* ${context.applicant_whatsapp || context.whatsapp || '-'}
+• *Asal Sekolah:* ${context.previous_school || '-'}
+• *Alamat:* ${context.applicant_address || context.address || '-'}
+
+🏫 *Pilihan Lembaga & Pondok:*
+• *Jalur Pendaftaran:* ${formatRegType(context.registration_type)}
+• *Lembaga Pendidikan:* ${formalName}
+• *Asrama Pondok:* ${pondokName}
+
+👨‍👩‍👦 *Data Orang Tua / Wali:*
+• *Nama ${guardianRel}:* ${guardianName}
+• *No. HP/WA Wali:* ${guardianPhone}
+
+⏰ *Waktu Pendaftaran:* ${regDate}
+
+_Silakan masuk ke Dashboard Admin SPSMB untuk memeriksa data dan verifikasi berkas._
+_Sistem Informasi SPSMB Pesantren Asy-Syadzili_`.trim();
+  }
 }
 
 const defaultInstance = new WhatsAppTemplateComposer();
