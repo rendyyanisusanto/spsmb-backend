@@ -4,11 +4,12 @@ const applicationCompletenessService = require('../services/applicationCompleten
 const finalSubmissionService = require('../services/finalSubmissionService');
 const publicApplicationStatusService = require('../services/publicApplicationStatusService');
 const pool = require('../config/database');
+const notificationEngine = require('../services/notificationEngineService');
 
 class PublicApplicationSubmitController {
   async validateAccess(req, res) {
     const { registrationNumber } = req.params;
-    const continueToken = req.headers['x-continue-token'] || req.query.token;
+    const continueToken = req.headers['x-continue-token'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '') || req.query.token;
 
     if (!continueToken) {
       throw { status: 401, message: 'Token lanjutan tidak ditemukan' };
@@ -82,6 +83,11 @@ class PublicApplicationSubmitController {
       // Re-fetch application after submit
       const submittedApp = await this.validateAccess(req, res);
       const reviewData = await publicApplicationStatusService.getReview(submittedApp);
+
+      // Trigger notification engine asynchronously after successful final submit
+      notificationEngine.processEvent('REGISTRATION_SUBMITTED', application.id).catch(err => {
+        console.error('[NotificationEngine] Error on REGISTRATION_SUBMITTED:', err.message);
+      });
 
       res.json({
         success: true,

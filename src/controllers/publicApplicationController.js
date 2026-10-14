@@ -1,5 +1,6 @@
 const applicationService = require('../services/publicApplicationService');
 const pool = require('../config/database');
+const notificationEngine = require('../services/notificationEngineService');
 
 class PublicApplicationController {
   async createApplication(req, res, next) {
@@ -53,6 +54,13 @@ class PublicApplicationController {
 
       const receipt = await applicationService.getReceipt(result.registrationNumber, result.continueToken);
 
+      // Trigger notification engine asynchronously after successful database commit
+      notificationEngine.processEvent('REGISTRATION_CREATED', result.applicationId, {
+        continueToken: result.continueToken
+      }).catch(err => {
+        console.error('[NotificationEngine] Error on REGISTRATION_CREATED:', err.message);
+      });
+
       res.status(201).json({
         success: true,
         message: 'Pendaftaran awal berhasil.',
@@ -73,7 +81,7 @@ class PublicApplicationController {
   async getReceipt(req, res, next) {
     try {
       const registrationNumber = req.params.registrationNumber;
-      const rawToken = req.headers['x-continue-token'];
+      const rawToken = req.headers['x-continue-token'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '') || req.query.token;
 
       if (!rawToken) {
         return res.status(401).json({

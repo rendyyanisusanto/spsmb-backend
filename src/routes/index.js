@@ -20,24 +20,8 @@ const whatsappTemplateRoutes = require('./whatsappTemplateRoutes');
 const applicationRoutes = require('./applicationRoutes');
 const dashboardRoutes = require('./dashboardRoutes');
 const auditRoutes = require('./auditRoutes');
-
-router.use('/auth', authRoutes);
-router.use('/users', userRoutes);
-router.use('/roles', roleRoutes);
-router.use('/institutions', institutionRoutes);
-router.use('/settings', settingRoutes);
-router.use('/public', publicRoutes);
-router.use('/academic-years', academicYearRoutes);
-router.use('/registration-periods', registrationPeriodRoutes);
-router.use('/registration-waves', registrationWaveRoutes);
-router.use('/programs', programRoutes);
-router.use('/', formRoutes);
-router.use('/', documentRoutes);
-router.use('/whatsapp-templates', whatsappTemplateRoutes);
-router.use('/applications', applicationRoutes);
-router.use('/dashboard', dashboardRoutes);
-router.use('/audit-logs', auditRoutes);
-
+const gowaRoutes = require('./gowaRoutes');
+const notificationRuleRoutes = require('./notificationRuleRoutes');
 
 router.get('/health', asyncHandler(async (req, res) => {
   let dbStatus = 'disconnected'
@@ -66,5 +50,27 @@ router.get('/health', asyncHandler(async (req, res) => {
     })
   }
 }))
+
+router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
+router.use('/roles', roleRoutes);
+router.use('/institutions', institutionRoutes);
+router.use('/settings', settingRoutes);
+router.use('/public', publicRoutes);
+router.use('/academic-years', academicYearRoutes);
+router.use('/registration-periods', registrationPeriodRoutes);
+router.use('/registration-waves', registrationWaveRoutes);
+router.use('/programs', programRoutes);
+router.use('/', formRoutes);
+router.use('/', documentRoutes);
+router.use('/whatsapp-templates', whatsappTemplateRoutes);
+router.use('/applications', applicationRoutes);
+router.use('/dashboard', dashboardRoutes);
+router.use('/audit-logs', auditRoutes);
+router.use('/gowa', gowaRoutes);
+router.use('/notification-rules', notificationRuleRoutes);
+
+
+
 
 module.exports = router

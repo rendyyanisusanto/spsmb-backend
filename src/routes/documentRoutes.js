@@ -5,7 +5,7 @@ const docTypeController = require('../controllers/documentTypeController');
 const docReqController = require('../controllers/documentRequirementController');
 const authenticate = require('../middlewares/authenticate');
 
-router.use(authenticate);
+router.use(['/document-types', '/document-requirements'], authenticate);
 
 // Document Types
 router.get('/document-types', docTypeController.getAll);

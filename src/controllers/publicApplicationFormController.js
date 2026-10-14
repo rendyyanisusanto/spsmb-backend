@@ -4,7 +4,7 @@ class PublicApplicationFormController {
   async getForm(req, res, next) {
     try {
       const { registrationNumber } = req.params;
-      const rawContinueToken = req.headers['x-continue-token'];
+      const rawContinueToken = req.headers['x-continue-token'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '') || req.query.token;
 
       if (!rawContinueToken) {
         return res.status(401).json({ success: false, message: 'Token otorisasi tidak ditemukan.' });
@@ -24,7 +24,7 @@ class PublicApplicationFormController {
   async saveSection(req, res, next) {
     try {
       const { registrationNumber, sectionId } = req.params;
-      const rawContinueToken = req.headers['x-continue-token'];
+      const rawContinueToken = req.headers['x-continue-token'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '') || req.query.token;
       const { answers, isCompleteAction } = req.body;
 
       if (!rawContinueToken) {

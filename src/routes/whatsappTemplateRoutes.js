@@ -9,6 +9,7 @@ router.use(authenticate);
 router.get('/events', controller.getEvents);
 router.get('/variables', controller.getVariables);
 router.post('/preview', controller.preview);
+router.post('/preview-composed', controller.previewComposed);
 router.get('/resolve', controller.resolve);
 
 router.get('/', controller.getAll);

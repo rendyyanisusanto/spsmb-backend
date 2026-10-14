@@ -7,7 +7,7 @@ const { AUDIT_ACTIONS } = require('../constants/auditActions');
 class PublicDocumentController {
   async validateAccess(req, res) {
     const { registrationNumber } = req.params;
-    const continueToken = req.headers['x-continue-token'] || req.query.token;
+    const continueToken = req.headers['x-continue-token'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '') || req.query.token;
 
     if (!continueToken) {
       throw { status: 401, message: 'Token lanjutan tidak ditemukan' };

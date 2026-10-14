@@ -98,6 +98,7 @@ class PublicApplicationService {
       return {
         registrationNumber: finalRegistrationNumber,
         continueToken: rawContinueToken,
+        applicationId
       };
 
     } catch (error) {

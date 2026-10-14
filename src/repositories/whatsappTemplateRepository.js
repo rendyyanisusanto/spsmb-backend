@@ -20,6 +20,10 @@ class WhatsappTemplateRepository {
       query += ' AND w.scope = ?';
       params.push(filters.scope);
     }
+    if (filters.sectionType) {
+      query += ' AND w.section_type = ?';
+      params.push(filters.sectionType);
+    }
     if (filters.institutionId) {
       query += ' AND w.institution_id = ?';
       params.push(filters.institutionId);
@@ -33,7 +37,7 @@ class WhatsappTemplateRepository {
       params.push('%' + filters.search + '%', '%' + filters.search + '%');
     }
 
-    query += ' ORDER BY w.event_code ASC, w.scope ASC, i.name ASC';
+    query += ' ORDER BY w.event_code ASC, w.section_type ASC, w.scope ASC, i.name ASC';
     const [rows] = await pool.query(query, params);
     return rows;
   }
@@ -50,7 +54,21 @@ class WhatsappTemplateRepository {
     return rows[0] || null;
   }
 
-  async findByCode(code) {
+  async findByCode(code, scope = null, institutionId = null) {
+    if (scope === 'INSTITUTION' && institutionId) {
+      const [rows] = await pool.query(
+        'SELECT * FROM wa_templates WHERE code = ? AND scope = "INSTITUTION" AND institution_id = ?',
+        [code, institutionId]
+      );
+      return rows[0] || null;
+    }
+    if (scope === 'GLOBAL') {
+      const [rows] = await pool.query(
+        'SELECT * FROM wa_templates WHERE code = ? AND scope = "GLOBAL"',
+        [code]
+      );
+      return rows[0] || null;
+    }
     const [rows] = await pool.query('SELECT * FROM wa_templates WHERE code = ?', [code]);
     return rows[0] || null;
   }
@@ -69,11 +87,20 @@ class WhatsappTemplateRepository {
   async create(data) {
     const query = `
       INSERT INTO wa_templates 
-      (code, name, event_code, scope, institution_id, message, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      (code, name, event_code, scope, section_type, institution_id, message, is_active, created_by, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     const [result] = await pool.query(query, [
-      data.code, data.name, data.event_code, data.scope, data.institution_id || null, data.message, data.is_active
+      data.code,
+      data.name,
+      data.event_code,
+      data.scope,
+      data.section_type || (data.scope === 'GLOBAL' ? 'GLOBAL' : 'FORMAL'),
+      data.institution_id || null,
+      data.message,
+      data.is_active,
+      data.created_by || null,
+      data.updated_by || null
     ]);
     return result.insertId;
   }

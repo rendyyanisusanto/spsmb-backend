@@ -69,7 +69,8 @@ exports.remove = async (req, res, next) => {
 };
 
 exports.getEvents = async (req, res, next) => {
-  res.json({ success: true, data: events });
+  const primaryEvents = events.filter(e => !e.value.includes('LEGACY') && e.value !== 'INITIAL_REGISTRATION_SUCCESS' && e.value !== 'FULL_REGISTRATION_SUBMITTED');
+  res.json({ success: true, data: primaryEvents });
 };
 
 exports.getVariables = async (req, res, next) => {
@@ -94,24 +95,62 @@ exports.getVariables = async (req, res, next) => {
 exports.preview = async (req, res, next) => {
   try {
     const { message, eventCode } = req.body;
-    // mock data
+    const { extractVariables } = require('../utils/templateRenderer');
+    const { allVariables } = require('../constants/whatsappVariables');
+
+    const knownKeys = allVariables.map(v => v.key);
+    const usedVariables = extractVariables(message);
+    const unknownVariables = usedVariables.filter(v => !knownKeys.includes(v));
+
+    const frontendBaseUrl = (process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',')[0].trim() : 'http://localhost:5173').replace(/\/+$/, '');
+
+    // Comprehensive mock data covering all registration placeholders
     const mockData = {
       registration_number: 'SPSMB-2027-00001',
       student_name: 'Ahmad Fauzan',
+      registration_type: 'SMK IT Asy-Syadzili',
       gender: 'Laki-laki',
+      institution_name: 'SMK IT Asy-Syadzili',
+      pondok_name: 'Pondok Pesantren Asy-Syadzili 1',
+      continue_url: `${frontendBaseUrl}/pendaftaran/lanjut/sample-preview-token`,
       parent_name: 'Abdul Karim',
       whatsapp: '081234567890',
-      previous_school: 'SMP Contoh',
-      institution_name: 'SMK IT Asy-Syadzili',
+      previous_school: 'SMP Negeri 1 Contoh',
       registration_status: 'Pendaftaran Awal',
       document_name: 'Kartu Keluarga',
       revision_note: 'Dokumen kurang jelas',
       announcement_title: 'Informasi SPSMB',
-      announcement_message: 'Silakan melengkapi data.',
+      announcement_message: 'Silakan melengkapi data berkas.',
       registration_date: '1 Oktober 2026'
     };
+
     const renderedMessage = renderTemplate(message, mockData);
-    res.json({ success: true, data: { renderedMessage } });
+    res.json({
+      success: true,
+      data: {
+        originalMessage: message,
+        renderedMessage,
+        usedVariables,
+        unknownVariables
+      }
+    });
+  } catch (error) { next(error); }
+};
+
+const composer = require('../services/whatsappTemplateComposer');
+
+exports.previewComposed = async (req, res, next) => {
+  try {
+    const { eventCode, pondokInstitutionId, formalInstitutionId, customGlobal, customPondok, customFormal } = req.body;
+    const result = await composer.composePreview({
+      eventCode: eventCode || 'REGISTRATION_CREATED',
+      pondokInstitutionId: pondokInstitutionId ? parseInt(pondokInstitutionId) : 1,
+      formalInstitutionId: formalInstitutionId !== undefined && formalInstitutionId !== null ? parseInt(formalInstitutionId) : 3,
+      customGlobal,
+      customPondok,
+      customFormal
+    });
+    res.json({ success: true, data: result });
   } catch (error) { next(error); }
 };
 

@@ -9,7 +9,7 @@ const sectionController = require('../controllers/formSectionController');
 const fieldController = require('../controllers/formFieldController');
 const configController = require('../controllers/formConfigController');
 
-router.use(authenticate);
+router.use(['/form-targets', '/form-sections', '/form-fields', '/form-config'], authenticate);
 
 // Target
 router.get('/form-targets', targetController.getAll);
