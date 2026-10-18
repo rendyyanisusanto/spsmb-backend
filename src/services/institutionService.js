@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 const institutionRepository = require('../repositories/institutionRepository');
 const { hasInstitutionAccess } = require('../utils/permission');
 
@@ -21,6 +23,35 @@ const getInstitutionById = async (user, id) => {
   const inst = await institutionRepository.findById(id);
   if (!inst) throw new Error('NOT_FOUND');
   return inst;
+};
+
+const moveTempFiles = async (id, tempLogoUrl, tempKopUrl) => {
+  const result = { logo_url: null, kop_url: null };
+  const targetDir = path.join(process.cwd(), 'storage', 'institutions', id.toString());
+
+  if (tempLogoUrl && tempLogoUrl.includes('/temp/')) {
+    const fileName = path.basename(tempLogoUrl);
+    await fs.promises.mkdir(targetDir, { recursive: true });
+    const oldPath = path.join(process.cwd(), 'storage', 'institutions', 'temp', fileName);
+    const newPath = path.join(targetDir, fileName);
+    if (fs.existsSync(oldPath)) {
+      await fs.promises.rename(oldPath, newPath);
+      result.logo_url = `/storage/institutions/${id}/${fileName}`;
+    }
+  }
+
+  if (tempKopUrl && tempKopUrl.includes('/temp/')) {
+    const fileName = path.basename(tempKopUrl);
+    await fs.promises.mkdir(targetDir, { recursive: true });
+    const oldPath = path.join(process.cwd(), 'storage', 'institutions', 'temp', fileName);
+    const newPath = path.join(targetDir, fileName);
+    if (fs.existsSync(oldPath)) {
+      await fs.promises.rename(oldPath, newPath);
+      result.kop_url = `/storage/institutions/${id}/${fileName}`;
+    }
+  }
+
+  return result;
 };
 
 const createInstitution = async (user, data) => {
@@ -61,7 +92,10 @@ const updateInstitution = async (user, id, data) => {
     code: updateData.code || existing.code,
     name: updateData.name || existing.name,
     institution_type: updateData.institution_type || existing.institution_type,
-    gender_scope: updateData.gender_scope || existing.gender_scope
+    gender_scope: updateData.gender_scope || existing.gender_scope,
+    logo_url: updateData.logo_url !== undefined ? updateData.logo_url : existing.logo_url,
+    kop_url: updateData.kop_url !== undefined ? updateData.kop_url : existing.kop_url,
+    is_active: updateData.is_active !== undefined ? updateData.is_active : existing.is_active
   });
 
   return await institutionRepository.findById(id);
@@ -83,5 +117,6 @@ module.exports = {
   getInstitutionById,
   createInstitution,
   updateInstitution,
-  updateStatus
+  updateStatus,
+  moveTempFiles
 };

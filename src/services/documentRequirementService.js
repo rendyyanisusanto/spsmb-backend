@@ -117,12 +117,38 @@ class DocumentRequirementService {
     mergeIntoMap(pondokReqs, 'PONDOK_COMMON');
     mergeIntoMap(instReqs, 'INSTITUTION');
     
+    const isPrestasiDoc = (doc) => {
+      const code = (doc.code || '').toLowerCase();
+      const name = (doc.name || '').toLowerCase();
+      return code.includes('prestasi') || name.includes('prestasi') || code.includes('piagam') || name.includes('piagam');
+    };
+
+    const targetTypeOrder = { 'COMMON': 1, 'PONDOK_COMMON': 2, 'INSTITUTION': 3 };
+
     const requirements = Array.from(map.values());
     requirements.sort((a, b) => {
-      const specA = { 'INSTITUTION': 3, 'PONDOK_COMMON': 2, 'COMMON': 1 }[a._targetType];
-      const specB = { 'INSTITUTION': 3, 'PONDOK_COMMON': 2, 'COMMON': 1 }[b._targetType];
-      if (specA !== specB) return specB - specA;
-      return a.sortOrder - b.sortOrder;
+      // 1. Dokumen prestasi ditaruh di bawah sendiri
+      const presA = isPrestasiDoc(a) ? 1 : 0;
+      const presB = isPrestasiDoc(b) ? 1 : 0;
+      if (presA !== presB) {
+        return presA - presB;
+      }
+
+      // 2. Dokumen dari lembaga harusnya dibawah global
+      const orderA = targetTypeOrder[a._targetType] || 2;
+      const orderB = targetTypeOrder[b._targetType] || 2;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+
+      // 3. Urutkan berdasarkan sortOrder
+      const sortA = a.sortOrder ?? 0;
+      const sortB = b.sortOrder ?? 0;
+      if (sortA !== sortB) {
+        return sortA - sortB;
+      }
+
+      return (a.documentTypeId || 0) - (b.documentTypeId || 0);
     });
     
     requirements.forEach(r => delete r._targetType);

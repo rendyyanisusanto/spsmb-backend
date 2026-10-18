@@ -142,11 +142,15 @@ class PublicApplicationService {
       registrationType: application.registration_type,
       institution: application.formal_institution_id ? {
         id: application.formal_institution_id,
-        name: application.formal_institution_name
+        name: application.formal_institution_name,
+        logo: application.formal_institution_logo,
+        kop: application.formal_institution_kop
       } : null,
       pondok: {
         id: application.pondok_institution_id,
-        name: application.pondok_institution_name
+        name: application.pondok_institution_name,
+        logo: application.pondok_institution_logo,
+        kop: application.pondok_institution_kop
       },
       period: {
         id: application.period_id,

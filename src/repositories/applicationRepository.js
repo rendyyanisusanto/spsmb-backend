@@ -50,8 +50,12 @@ class ApplicationRepository {
         g.name as parent_name,
         fi.id as formal_institution_id,
         fi.name as formal_institution_name,
+        fi.logo_url as formal_institution_logo,
+        fi.kop_url as formal_institution_kop,
         pi.id as pondok_institution_id,
         pi.name as pondok_institution_name,
+        pi.logo_url as pondok_institution_logo,
+        pi.kop_url as pondok_institution_kop,
         per.id as period_id,
         per.name as period_name,
         w.id as wave_id,
@@ -89,9 +93,13 @@ class ApplicationRepository {
         fi.id as formal_institution_id,
         fi.code as formal_institution_code,
         fi.name as formal_institution_name,
+        fi.logo_url as formal_institution_logo,
+        fi.kop_url as formal_institution_kop,
         pi.id as pondok_institution_id,
         pi.code as pondok_institution_code,
         pi.name as pondok_institution_name,
+        pi.logo_url as pondok_institution_logo,
+        pi.kop_url as pondok_institution_kop,
         per.id as period_id,
         per.academic_year as period_academic_year,
         per.start_date as period_start_date,
@@ -101,7 +109,28 @@ class ApplicationRepository {
         w.name as wave_name,
         w.start_date as wave_start_date,
         w.end_date as wave_end_date,
-        w.is_active as wave_is_active
+        w.is_active as wave_is_active,
+        (
+          SELECT wl.status 
+          FROM wa_logs wl 
+          WHERE wl.application_id = a.id 
+          ORDER BY wl.id DESC 
+          LIMIT 1
+        ) as whatsapp_status,
+        (
+          SELECT wl.created_at 
+          FROM wa_logs wl 
+          WHERE wl.application_id = a.id 
+          ORDER BY wl.id DESC 
+          LIMIT 1
+        ) as whatsapp_sent_at,
+        (
+          SELECT wl.error_message 
+          FROM wa_logs wl 
+          WHERE wl.application_id = a.id 
+          ORDER BY wl.id DESC 
+          LIMIT 1
+        ) as whatsapp_error
       FROM applications a
       LEFT JOIN institutions fi ON a.formal_institution_id = fi.id
       LEFT JOIN institutions pi ON a.pondok_institution_id = pi.id
@@ -128,9 +157,13 @@ class ApplicationRepository {
         fi.id as formal_institution_id,
         fi.code as formal_institution_code,
         fi.name as formal_institution_name,
+        fi.logo_url as formal_institution_logo,
+        fi.kop_url as formal_institution_kop,
         pi.id as pondok_institution_id,
         pi.code as pondok_institution_code,
         pi.name as pondok_institution_name,
+        pi.logo_url as pondok_institution_logo,
+        pi.kop_url as pondok_institution_kop,
         per.id as period_id,
         per.academic_year as period_academic_year,
         per.start_date as period_start_date,
@@ -280,6 +313,12 @@ class ApplicationRepository {
       FROM applicant_documents ad
       JOIN document_types dt ON ad.document_type_id = dt.id
       WHERE ad.application_id = ?
+      ORDER BY 
+        CASE 
+          WHEN LOWER(dt.code) LIKE '%prestasi%' OR LOWER(dt.name) LIKE '%prestasi%' OR LOWER(dt.code) LIKE '%piagam%' OR LOWER(dt.name) LIKE '%piagam%' THEN 1 
+          ELSE 0 
+        END ASC,
+        ad.id ASC
     `;
     const [rows] = await pool.query(query, [applicationId]);
     return rows;
@@ -316,13 +355,38 @@ class ApplicationRepository {
           fi.id as formalInstitutionId,
           fi.code as formalInstitutionCode,
           fi.name as formalInstitutionName,
+          fi.logo_url as formalInstitutionLogo,
+          fi.kop_url as formalInstitutionKop,
           pi.id as pondokInstitutionId,
           pi.code as pondokInstitutionCode,
           pi.name as pondokInstitutionName,
+          pi.logo_url as pondokInstitutionLogo,
+          pi.kop_url as pondokInstitutionKop,
           per.id as periodId,
           per.academic_year as periodAcademicYear,
           w.id as waveId,
-          w.name as waveName
+          w.name as waveName,
+          (
+            SELECT wl.status 
+            FROM wa_logs wl 
+            WHERE wl.application_id = a.id 
+            ORDER BY wl.id DESC 
+            LIMIT 1
+          ) as whatsappStatus,
+          (
+            SELECT wl.created_at 
+            FROM wa_logs wl 
+            WHERE wl.application_id = a.id 
+            ORDER BY wl.id DESC 
+            LIMIT 1
+          ) as whatsappSentAt,
+          (
+            SELECT wl.error_message 
+            FROM wa_logs wl 
+            WHERE wl.application_id = a.id 
+            ORDER BY wl.id DESC 
+            LIMIT 1
+          ) as whatsappError
         FROM applications a`;
 
     query += `
@@ -437,6 +501,15 @@ class ApplicationRepository {
     const { query, values } = this._buildApplicationsQuery(params, true);
     const [rows] = await pool.query(query, values);
     return rows[0].total;
+  }
+
+  async deleteApplication(applicationId, applicantId, connection) {
+    const conn = connection || pool;
+    await conn.query('DELETE FROM applications WHERE id = ?', [applicationId]);
+    if (applicantId) {
+      await conn.query('DELETE FROM applicant_guardians WHERE applicant_id = ?', [applicantId]);
+      await conn.query('DELETE FROM applicants WHERE id = ?', [applicantId]);
+    }
   }
 }
 

@@ -90,10 +90,9 @@ class NotificationEngineService {
       let composedResult = null;
       try {
         composedResult = await this.composer.composeForApplication(applicationId, eventCode, {
+          ...options,
           context,
-          connection: db,
-          continueToken: options.continueToken,
-          continueUrl: options.continueUrl
+          connection: db
         });
       } catch (cErr) {
         console.warn('[NotificationEngine] Warning composing unified message:', cErr.message);
@@ -138,11 +137,17 @@ class NotificationEngineService {
 
       // 5. Process each recipient with idempotency protection
       for (const recipient of recipients) {
+        if (options.recipientTypes && !options.recipientTypes.includes(recipient.recipientType)) {
+          continue;
+        }
+
         const isParentOrApplicant = recipient.recipientType === 'APPLICANT' || recipient.recipientType === 'GUARDIAN';
         
         let messageToSend = '';
         if (isParentOrApplicant) {
-          messageToSend = hasComposedMessage ? composedResult.composedMessage : standardRenderedMessage;
+          messageToSend = (options.forceResend && options.customMessage && typeof options.customMessage === 'string' && options.customMessage.trim().length > 0)
+            ? options.customMessage.trim()
+            : (hasComposedMessage ? composedResult.composedMessage : standardRenderedMessage);
         } else {
           // Internal admin (SUPER_ADMIN, INSTITUTION_ADMIN): detail pendaftar lengkap statis
           const adminCustomMsg = this.formatAdminMessage(context, eventCode, recipient);
@@ -159,6 +164,7 @@ class NotificationEngineService {
           eventCode,
           recipient,
           message: messageToSend,
+          forceResend: Boolean(options.forceResend),
           db
         });
 
@@ -197,30 +203,35 @@ class NotificationEngineService {
   /**
    * Dispatch single recipient with idempotency and log recording
    */
-  async _dispatchToRecipient({ context, template, eventCode, recipient, message, db }) {
-    const idempotencyKey = recipient.idempotencyKey;
+  async _dispatchToRecipient({ context, template, eventCode, recipient, message, forceResend = false, db }) {
+    let idempotencyKey = recipient.idempotencyKey;
+    if (forceResend) {
+      idempotencyKey = `${idempotencyKey}:resend_${Date.now()}`;
+    }
 
     try {
-      // Check existing log by idempotency key
-      const [existingLogs] = await db.query(
-        `SELECT id, status, provider_message_id, attempt_count 
-         FROM wa_logs 
-         WHERE idempotency_key = ? 
-         LIMIT 1`,
-        [idempotencyKey]
-      );
+      if (!forceResend) {
+        // Check existing log by idempotency key
+        const [existingLogs] = await db.query(
+          `SELECT id, status, provider_message_id, attempt_count 
+           FROM wa_logs 
+           WHERE idempotency_key = ? 
+           LIMIT 1`,
+          [idempotencyKey]
+        );
 
-      if (existingLogs.length > 0) {
-        const existing = existingLogs[0];
-        if (existing.status === 'SENT') {
-          return {
-            recipientType: recipient.recipientType,
-            name: recipient.name,
-            phone: recipient.phone,
-            status: 'ALREADY_SENT',
-            providerMessageId: existing.provider_message_id,
-            logId: existing.id
-          };
+        if (existingLogs.length > 0) {
+          const existing = existingLogs[0];
+          if (existing.status === 'SENT') {
+            return {
+              recipientType: recipient.recipientType,
+              name: recipient.name,
+              phone: recipient.phone,
+              status: 'ALREADY_SENT',
+              providerMessageId: existing.provider_message_id,
+              logId: existing.id
+            };
+          }
         }
       }
 

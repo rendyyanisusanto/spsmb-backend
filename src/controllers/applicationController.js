@@ -121,6 +121,49 @@ class ApplicationController {
       throw error;
     }
   });
+
+  resendWhatsapp = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    try {
+      const result = await applicationService.resendApplicationWhatsapp(id, req.user, req.body);
+      if (result.success) {
+        return successResponse(res, 200, result.message, result.data);
+      } else {
+        return errorResponse(res, 400, result.message, result.data);
+      }
+    } catch (error) {
+      if (error.statusCode) {
+        return errorResponse(res, error.statusCode, error.message);
+      }
+      throw error;
+    }
+  });
+
+  getResendPreview = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    try {
+      const result = await applicationService.getResendPreview(id, req.user);
+      return successResponse(res, 200, 'Data preview resend WhatsApp berhasil dimuat.', result);
+    } catch (error) {
+      if (error.statusCode) {
+        return errorResponse(res, error.statusCode, error.message);
+      }
+      throw error;
+    }
+  });
+
+  deleteApplication = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    try {
+      const result = await applicationService.deleteApplication(id, req.user, req);
+      return successResponse(res, 200, result.message, result);
+    } catch (error) {
+      if (error.statusCode) {
+        return errorResponse(res, error.statusCode, error.message);
+      }
+      throw error;
+    }
+  });
 }
 
 module.exports = new ApplicationController();

@@ -52,24 +52,53 @@ class PublicDocumentService {
           sortOrder: r.sort_order,
           allowedExtensions: r.allowed_extensions ? r.allowed_extensions.split(',').map(s => s.trim().toLowerCase()) : [],
           maxSizeMb: r.max_size_mb,
+          targetType: r.target_type,
           _targetType: r.target_type
         });
       } else {
         const existing = map.get(docId);
         if (r.is_required) existing.required = true;
         if (specificity[r.target_type] > specificity[existing._targetType]) {
+          existing.targetType = r.target_type;
           existing._targetType = r.target_type;
           existing.sortOrder = r.sort_order;
         }
       }
     }
 
+    const isPrestasiDoc = (doc) => {
+      const code = (doc.code || '').toLowerCase();
+      const name = (doc.name || '').toLowerCase();
+      return code.includes('prestasi') || name.includes('prestasi') || code.includes('piagam') || name.includes('piagam');
+    };
+
+    // Urutan jenis target: Global (COMMON = 1, PONDOK_COMMON = 2), Lembaga di bawah global (INSTITUTION = 3)
+    const targetTypeOrder = { 'COMMON': 1, 'PONDOK_COMMON': 2, 'INSTITUTION': 3 };
+
     const requirements = Array.from(map.values());
     requirements.sort((a, b) => {
-      const specA = specificity[a._targetType];
-      const specB = specificity[b._targetType];
-      if (specA !== specB) return specB - specA;
-      return a.sortOrder - b.sortOrder;
+      // 1. Dokumen prestasi ditaruh di bawah sendiri
+      const presA = isPrestasiDoc(a) ? 1 : 0;
+      const presB = isPrestasiDoc(b) ? 1 : 0;
+      if (presA !== presB) {
+        return presA - presB;
+      }
+
+      // 2. Dokumen dari lembaga harusnya dibawah global
+      const orderA = targetTypeOrder[a._targetType] || 2;
+      const orderB = targetTypeOrder[b._targetType] || 2;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+
+      // 3. Urutkan berdasarkan sortOrder
+      const sortA = a.sortOrder ?? 0;
+      const sortB = b.sortOrder ?? 0;
+      if (sortA !== sortB) {
+        return sortA - sortB;
+      }
+
+      return (a.documentTypeId || 0) - (b.documentTypeId || 0);
     });
 
     requirements.forEach(r => delete r._targetType);

@@ -37,9 +37,23 @@ class WhatsAppTemplateComposer {
     }
 
     const frontendBaseUrl = (process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',')[0].trim() : 'http://localhost:5173').replace(/\/+$/, '');
-    const continueUrl = options.continueToken 
-      ? `${frontendBaseUrl}/pendaftaran/lanjut/${options.continueToken}`
-      : (options.continueUrl || context.continue_url || `${frontendBaseUrl}/pendaftaran/formulir`);
+    
+    const continueUrl = options.continueUrl || (options.resumeHash
+      ? `${frontendBaseUrl}/pendaftaran/lanjut/${options.resumeHash}`
+      : (options.continueToken 
+        ? `${frontendBaseUrl}/pendaftaran/lanjut/${options.continueToken}` 
+        : (context.continue_url || `${frontendBaseUrl}/pendaftaran/formulir`)));
+
+    let resumeHash = options.resumeHash || '';
+    if (!resumeHash && options.continueToken && (context.registration_number || options.registrationNumber)) {
+      const regNo = context.registration_number || options.registrationNumber;
+      resumeHash = Buffer.from(`${regNo}::${options.continueToken}`).toString('base64')
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    }
+
+    const receiptUrl = options.receiptUrl || (resumeHash
+      ? `${frontendBaseUrl}/pendaftaran/lanjut/${resumeHash}?to=struk`
+      : `${frontendBaseUrl}/pendaftaran/sukses`);
 
     const formatGender = (gender) => {
       if (!gender) return '';
@@ -76,10 +90,12 @@ class WhatsAppTemplateComposer {
       pondok_name: context.pondok_institution_name || context.pondok_name || '',
       gender: formatGender(context.gender),
       continue_url: continueUrl,
+      receipt_url: receiptUrl,
+      struk_url: receiptUrl,
       parent_name: guardianName,
       guardian_name: guardianName,
-      guardian_phone: guardianPhone,
-      whatsapp: context.applicant_whatsapp || context.whatsapp || '',
+      guardian_phone: formatLocalPhone(guardianPhone),
+      whatsapp: formatLocalPhone(context.applicant_whatsapp || context.whatsapp),
       address: context.applicant_address || context.address || '',
       applicant_address: context.applicant_address || context.address || '',
       previous_school: context.previous_school || '',
@@ -196,7 +212,72 @@ class WhatsAppTemplateComposer {
     }
 
     // 6. Assemble into single unified string separated by double newlines
-    const composedMessage = renderedParts.filter(Boolean).join('\n\n').trim();
+    let composedMessage = renderedParts.filter(Boolean).join('\n\n').trim();
+
+    // If this is a forceResend / resend action from admin, ensure struk and complete link are included
+    if (options.forceResend) {
+      const regNo = context.registration_number || '';
+      const sName = context.student_name || context.applicant_name || '';
+      const formatRegType = (type) => {
+        const map = {
+          'NON_FORMAL': 'Non Formal',
+          'SMP': 'SMP IT Asy-Syadzili',
+          'SMA': 'SMA IT Asy-Syadzili',
+          'SMK': 'SMK IT Asy-Syadzili'
+        };
+        return map[type] || type || '';
+      };
+      const regTypeFormatted = formatRegType(context.registration_type);
+      const instName = context.formal_institution_name || (context.registration_type === 'NON_FORMAL' ? 'Non Formal' : '');
+
+      let resumeHash = options.resumeHash || '';
+      if (!resumeHash && options.continueToken && regNo) {
+        resumeHash = Buffer.from(`${regNo}::${options.continueToken}`).toString('base64')
+          .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+      }
+
+      const frontendBaseUrl = (process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',')[0].trim() : 'http://localhost:5173').replace(/\/+$/, '');
+      const continueUrl = options.continueUrl || (resumeHash
+        ? `${frontendBaseUrl}/pendaftaran/lanjut/${resumeHash}`
+        : `${frontendBaseUrl}/pendaftaran/formulir`);
+      const receiptUrl = options.receiptUrl || (resumeHash
+        ? `${frontendBaseUrl}/pendaftaran/lanjut/${resumeHash}?to=struk`
+        : `${frontendBaseUrl}/pendaftaran/sukses`);
+
+      const extraSections = [];
+
+      // 1. Lampiran Struk Pendaftaran (if requested and not already containing receipt link)
+      if (options.includeReceipt !== false && !composedMessage.includes(receiptUrl)) {
+        extraSections.push(
+          `📄 *BUKTI / STRUK PENDAFTARAN:*
+• No. Registrasi: *${regNo}*
+• Nama: *${sName}*
+• Jalur & Lembaga: ${regTypeFormatted}${instName ? ' (' + instName + ')' : ''}
+• Unduh / Cetak Struk: ${receiptUrl}`
+        );
+      }
+
+      // 2. Link Pendaftaran Lengkap (if requested and not already containing continue link)
+      if (options.includeContinueLink !== false && !composedMessage.includes(continueUrl)) {
+        extraSections.push(
+          `🔗 *LINK PENDAFTARAN LENGKAP:*
+Silakan klik tautan berikut untuk melanjutkan pengisian formulir pendaftaran:
+${continueUrl}`
+        );
+      }
+
+      // 3. Catatan Khusus Admin (if provided)
+      if (options.customNote && typeof options.customNote === 'string' && options.customNote.trim()) {
+        extraSections.push(
+          `📌 *Catatan Panitia:*
+${options.customNote.trim()}`
+        );
+      }
+
+      if (extraSections.length > 0) {
+        composedMessage = `${composedMessage}\n\n${extraSections.join('\n\n')}`.trim();
+      }
+    }
 
     return {
       composedMessage,
@@ -318,20 +399,17 @@ class WhatsAppTemplateComposer {
   }
 
   /**
-   * Format complete registrant detail notification message for administrators
+   * Format concise registrant detail notification message for administrators and institutions
    */
   formatAdminNotification(context, eventCode = 'REGISTRATION_CREATED') {
     if (!context) return '';
 
     const isFinalSubmit = eventCode === 'REGISTRATION_SUBMITTED' || eventCode === 'FULL_REGISTRATION_SUBMITTED';
 
+    // Clarify Form Awal vs Form Lengkap explicitly with concise header
     const header = isFinalSubmit
-      ? '🔔 *NOTIFIKASI PENDAFTARAN LENGKAP - SPSMB*'
-      : '🔔 *NOTIFIKASI PENDAFTAR BARU - SPSMB*';
-
-    const subHeader = isFinalSubmit
-      ? 'Formulir pendaftaran lengkap dan berkas pendaftar telah berhasil dikirimkan:'
-      : 'Ada pendaftar baru yang telah membuat akun pendaftaran:';
+      ? '🔔 *NOTIFIKASI PENDAFTARAN LENGKAP (FORM PENDAFTARAN LENGKAP)*'
+      : '🔔 *NOTIFIKASI PENDAFTAR BARU (FORM PENDAFTARAN AWAL)*';
 
     const formatGender = (gender) => {
       if (!gender) return '-';
@@ -352,20 +430,24 @@ class WhatsAppTemplateComposer {
 
     // Guardian details
     let guardianName = '-';
-    let guardianPhone = '-';
+    let rawGuardianPhone = '-';
     let guardianRel = 'Wali';
 
     if (context.guardians && context.guardians.length > 0) {
       const g = context.guardians.find(item => item.name) || context.guardians[0];
       guardianName = g.name || '-';
-      guardianPhone = g.phone || '-';
+      rawGuardianPhone = g.phone || '-';
       if (g.relationship === 'FATHER') guardianRel = 'Ayah';
       else if (g.relationship === 'MOTHER') guardianRel = 'Ibu';
       else if (g.relationship === 'GUARDIAN') guardianRel = 'Wali';
     } else {
       guardianName = context.parent_name || context.guardian_name || '-';
-      guardianPhone = context.guardian_phone || '-';
+      rawGuardianPhone = context.guardian_phone || '-';
     }
+
+    // Always format phone numbers starting with 08 (never 62)
+    const applicantPhone = formatLocalPhone(context.applicant_whatsapp || context.whatsapp);
+    const guardianPhone = formatLocalPhone(rawGuardianPhone);
 
     // Birth details
     let birthInfo = '-';
@@ -384,17 +466,6 @@ class WhatsAppTemplateComposer {
         : context.birth_date;
     }
 
-    // Registration date/time
-    let regDate = '-';
-    if (context.created_at) {
-      const d = new Date(context.created_at);
-      regDate = !isNaN(d.getTime())
-        ? d.toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        : context.created_at;
-    } else if (context.registration_date) {
-      regDate = context.registration_date;
-    }
-
     // Institutions
     let formalName = context.formal_institution_name;
     if (!formalName) {
@@ -405,38 +476,54 @@ class WhatsAppTemplateComposer {
       }
     }
 
-    const pondokName = context.pondok_institution_name || (context.gender === 'FEMALE' || context.gender === 'P' || context.gender === 'Perempuan' ? 'Pondok Pesantren Asy-Syadzili 2 (Putri)' : 'Pondok Pesantren Asy-Syadzili 1 (Putra)');
+    const pondokName = context.pondok_institution_name || (context.gender === 'FEMALE' || context.gender === 'P' || context.gender === 'Perempuan' ? 'Pondok Pesantren Asy-Syadzili 2' : 'Pondok Pesantren Asy-Syadzili 1');
+    const studentName = context.student_name || context.applicant_name || context.full_name || '-';
+    const regNum = context.registration_number || '-';
+    const previousSchool = context.previous_school || '-';
+    const address = context.applicant_address || context.address || '-';
 
+    const footer = isFinalSubmit
+      ? '_Berkas pendaftaran lengkap telah berhasil dikirimkan._\n_SPSMB Pesantren Asy-Syadzili_'
+      : '_SPSMB Pesantren Asy-Syadzili_';
+
+    // Concise, clean message for institutions
     return `${header}
 
-${subHeader}
-
-📝 *Detail Calon Santri:*
-• *Nomor Registrasi:* ${context.registration_number || '-'}
-• *Nama Lengkap:* ${context.student_name || context.applicant_name || context.full_name || '-'}
-• *Jenis Kelamin:* ${formatGender(context.gender)}
+• *No. Registrasi:* ${regNum}
+• *Nama Santri:* ${studentName} (${formatGender(context.gender)})
 • *TTL:* ${birthInfo}
-• *No. WhatsApp:* ${context.applicant_whatsapp || context.whatsapp || '-'}
-• *Asal Sekolah:* ${context.previous_school || '-'}
-• *Alamat:* ${context.applicant_address || context.address || '-'}
+• *Asal Sekolah:* ${previousSchool}
+• *Alamat:* ${address}
+• *Lembaga:* ${formalName}
+• *Pondok:* ${pondokName}
+• *No. HP Santri:* ${applicantPhone}
+• *Nama Wali:* ${guardianName} (${guardianRel})
+• *No. HP Wali:* ${guardianPhone}
 
-🏫 *Pilihan Lembaga & Pondok:*
-• *Jalur Pendaftaran:* ${formatRegType(context.registration_type)}
-• *Lembaga Pendidikan:* ${formalName}
-• *Asrama Pondok:* ${pondokName}
-
-👨‍👩‍👦 *Data Orang Tua / Wali:*
-• *Nama ${guardianRel}:* ${guardianName}
-• *No. HP/WA Wali:* ${guardianPhone}
-
-⏰ *Waktu Pendaftaran:* ${regDate}
-
-_Silakan masuk ke Dashboard Admin SPSMB untuk memeriksa data dan verifikasi berkas._
-_Sistem Informasi SPSMB Pesantren Asy-Syadzili_`.trim();
+${footer}`.trim();
   }
+}
+
+/**
+ * Format local Indonesian phone number starting with 08 instead of 62
+ */
+function formatLocalPhone(phone) {
+  if (phone === null || phone === undefined || phone === '') return '-';
+  let str = String(phone).trim();
+  let cleaned = str.replace(/[^\d+]/g, '');
+  if (!cleaned || cleaned === '0') return '-';
+  if (cleaned.startsWith('+62')) {
+    cleaned = '0' + cleaned.slice(3);
+  } else if (cleaned.startsWith('62')) {
+    cleaned = '0' + cleaned.slice(2);
+  } else if (cleaned.startsWith('8')) {
+    cleaned = '0' + cleaned;
+  }
+  return cleaned.startsWith('0') ? cleaned : ('0' + cleaned);
 }
 
 const defaultInstance = new WhatsAppTemplateComposer();
 
 module.exports = defaultInstance;
 module.exports.WhatsAppTemplateComposer = WhatsAppTemplateComposer;
+module.exports.formatLocalPhone = formatLocalPhone;

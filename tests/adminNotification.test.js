@@ -224,6 +224,36 @@ describe('Notifikasi Admin: Detail Pendaftar Lengkap & Routing Lembaga SMP', () 
     assert.ok(adminMessage.includes('Pondok Pesantren Asy-Syadzili 2'));
     assert.ok(adminMessage.includes('Khadijah'));
     assert.ok(adminMessage.includes('Surabaya'));
+    assert.ok(adminMessage.includes('FORM PENDAFTARAN AWAL'));
+  });
+
+  test('5. Nomor telepon di WA lembaga berformat 08 dan tidak menampilkan awalan 62', () => {
+    const context = {
+      registration_number: 'SPSMB-2027-SMA-009',
+      student_name: 'Zaidan Al-Fatih',
+      gender: 'MALE',
+      registration_type: 'SMA',
+      formal_institution_name: 'SMA IT Asy-Syadzili',
+      pondok_institution_name: 'Pondok Pesantren Asy-Syadzili 1',
+      applicant_whatsapp: '6281234567890', // input with 62
+      birth_place: 'Malang',
+      birth_date: '2010-01-01',
+      guardians: [
+        { name: 'Umar', phone: '+6281987654321', relationship: 'FATHER' } // input with +62
+      ]
+    };
+
+    const initialMsg = composer.formatAdminNotification(context, 'REGISTRATION_CREATED');
+    assert.ok(initialMsg.includes('FORM PENDAFTARAN AWAL'));
+    assert.ok(initialMsg.includes('081234567890'), 'Harus diubah menjadi awalan 08');
+    assert.ok(!initialMsg.includes('6281234567890'), 'Tidak boleh berisi awalan 62 untuk santri');
+    assert.ok(initialMsg.includes('081987654321'), 'Harus diubah menjadi awalan 08');
+    assert.ok(!initialMsg.includes('6281987654321'), 'Tidak boleh berisi awalan 62 untuk wali');
+
+    const finalMsg = composer.formatAdminNotification(context, 'REGISTRATION_SUBMITTED');
+    assert.ok(finalMsg.includes('FORM PENDAFTARAN LENGKAP'));
+    assert.ok(finalMsg.includes('081234567890'));
+    assert.ok(finalMsg.includes('081987654321'));
   });
 
 });

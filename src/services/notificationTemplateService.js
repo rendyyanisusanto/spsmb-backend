@@ -81,9 +81,23 @@ class NotificationTemplateService {
     }
 
     const frontendBaseUrl = (process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',')[0].trim() : 'http://localhost:5173').replace(/\/+$/, '');
-    const continueUrl = options.continueToken 
-      ? `${frontendBaseUrl}/pendaftaran/lanjut/${options.continueToken}`
-      : (options.continueUrl || `${frontendBaseUrl}/pendaftaran/formulir`);
+    
+    const continueUrl = options.continueUrl || (options.resumeHash
+      ? `${frontendBaseUrl}/pendaftaran/lanjut/${options.resumeHash}`
+      : (options.continueToken 
+        ? `${frontendBaseUrl}/pendaftaran/lanjut/${options.continueToken}`
+        : `${frontendBaseUrl}/pendaftaran/formulir`));
+
+    let resumeHash = options.resumeHash || '';
+    if (!resumeHash && options.continueToken && (context.registration_number || options.registrationNumber)) {
+      const regNo = context.registration_number || options.registrationNumber;
+      resumeHash = Buffer.from(`${regNo}::${options.continueToken}`).toString('base64')
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    }
+
+    const receiptUrl = options.receiptUrl || (resumeHash
+      ? `${frontendBaseUrl}/pendaftaran/lanjut/${resumeHash}?to=struk`
+      : `${frontendBaseUrl}/pendaftaran/sukses`);
 
     const formatRegType = (type) => {
       const map = {
@@ -107,6 +121,8 @@ class NotificationTemplateService {
       '{{institution_name}}': context.formal_institution_name || (context.registration_type === 'NON_FORMAL' ? 'Non Formal' : '-'),
       '{{pondok_name}}': context.pondok_institution_name || '-',
       '{{continue_url}}': continueUrl,
+      '{{receipt_url}}': receiptUrl,
+      '{{struk_url}}': receiptUrl,
       '{{parent_name}}': guardianName,
       '{{whatsapp}}': context.applicant_whatsapp || '',
       '{{previous_school}}': context.previous_school || ''
@@ -119,6 +135,31 @@ class NotificationTemplateService {
 
     // Clean up any remaining unknown {{placeholder}} tags
     rendered = rendered.replace(/\{\{[^}]+\}\}/g, '').trim();
+
+    if (options.forceResend) {
+      const extraSections = [];
+      if (options.includeReceipt !== false && !rendered.includes(receiptUrl)) {
+        extraSections.push(
+          `📄 *BUKTI / STRUK PENDAFTARAN:*
+• No. Registrasi: *${context.registration_number || ''}*
+• Nama: *${context.student_name || ''}*
+• Tautan Cetak Struk: ${receiptUrl}`
+        );
+      }
+      if (options.includeContinueLink !== false && !rendered.includes(continueUrl)) {
+        extraSections.push(
+          `🔗 *LINK PENDAFTARAN LENGKAP:*
+Silakan klik tautan berikut untuk melanjutkan pengisian formulir pendaftaran:
+${continueUrl}`
+        );
+      }
+      if (options.customNote && typeof options.customNote === 'string' && options.customNote.trim()) {
+        extraSections.push(`📌 *Catatan Panitia:*\n${options.customNote.trim()}`);
+      }
+      if (extraSections.length > 0) {
+        rendered = `${rendered}\n\n${extraSections.join('\n\n')}`.trim();
+      }
+    }
 
     return rendered;
   }

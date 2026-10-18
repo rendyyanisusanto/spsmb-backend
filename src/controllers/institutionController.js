@@ -33,7 +33,28 @@ const getInstitutionById = async (req, res) => {
 
 const createInstitution = async (req, res) => {
   try {
-    const data = await institutionService.createInstitution(req.user, req.body);
+    const body = { ...req.body };
+
+    if (req.files) {
+      if (req.files.logo && req.files.logo[0]) {
+        body.logo_url = `/storage/institutions/temp/${req.files.logo[0].filename}`;
+      }
+      if (req.files.kop && req.files.kop[0]) {
+        body.kop_url = `/storage/institutions/temp/${req.files.kop[0].filename}`;
+      }
+    }
+
+    let data = await institutionService.createInstitution(req.user, body);
+
+    if (data && (body.logo_url || body.kop_url)) {
+      const moved = await institutionService.moveTempFiles(data.id, body.logo_url, body.kop_url);
+      if (moved.logo_url || moved.kop_url) {
+        data = await institutionService.updateInstitution(req.user, data.id, {
+          logo_url: moved.logo_url || data.logo_url,
+          kop_url: moved.kop_url || data.kop_url
+        });
+      }
+    }
     
     await auditService.log(
       AUDIT_ACTIONS.CREATE,
@@ -52,7 +73,26 @@ const createInstitution = async (req, res) => {
 
 const updateInstitution = async (req, res) => {
   try {
-    const data = await institutionService.updateInstitution(req.user, req.params.id, req.body);
+    const id = req.params.id;
+    const body = { ...req.body };
+
+    if (req.files) {
+      if (req.files.logo && req.files.logo[0]) {
+        body.logo_url = `/storage/institutions/${id}/${req.files.logo[0].filename}`;
+      }
+      if (req.files.kop && req.files.kop[0]) {
+        body.kop_url = `/storage/institutions/${id}/${req.files.kop[0].filename}`;
+      }
+    }
+
+    if (body.delete_logo === 'true' || body.delete_logo === true) {
+      body.logo_url = null;
+    }
+    if (body.delete_kop === 'true' || body.delete_kop === true) {
+      body.kop_url = null;
+    }
+
+    const data = await institutionService.updateInstitution(req.user, id, body);
     
     await auditService.log(
       AUDIT_ACTIONS.UPDATE,

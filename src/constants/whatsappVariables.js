@@ -1,9 +1,9 @@
 
 const variablesMap = {
-  REGISTRATION_CREATED: ['registration_number', 'student_name', 'gender', 'registration_type', 'institution_name', 'pondok_name', 'continue_url', 'parent_name', 'whatsapp', 'previous_school', 'registration_date'],
-  REGISTRATION_SUBMITTED: ['registration_number', 'student_name', 'gender', 'registration_type', 'institution_name', 'pondok_name', 'continue_url', 'parent_name', 'whatsapp', 'previous_school', 'registration_date'],
-  INITIAL_REGISTRATION_SUCCESS: ['registration_number', 'student_name', 'gender', 'registration_type', 'institution_name', 'pondok_name', 'continue_url', 'parent_name', 'whatsapp', 'previous_school', 'registration_date'],
-  FULL_REGISTRATION_SUBMITTED: ['registration_number', 'student_name', 'gender', 'registration_type', 'institution_name', 'pondok_name', 'continue_url', 'parent_name', 'whatsapp', 'previous_school', 'registration_date'],
+  REGISTRATION_CREATED: ['registration_number', 'student_name', 'gender', 'registration_type', 'institution_name', 'pondok_name', 'continue_url', 'receipt_url', 'parent_name', 'whatsapp', 'previous_school', 'registration_date'],
+  REGISTRATION_SUBMITTED: ['registration_number', 'student_name', 'gender', 'registration_type', 'institution_name', 'pondok_name', 'continue_url', 'receipt_url', 'parent_name', 'whatsapp', 'previous_school', 'registration_date'],
+  INITIAL_REGISTRATION_SUCCESS: ['registration_number', 'student_name', 'gender', 'registration_type', 'institution_name', 'pondok_name', 'continue_url', 'receipt_url', 'parent_name', 'whatsapp', 'previous_school', 'registration_date'],
+  FULL_REGISTRATION_SUBMITTED: ['registration_number', 'student_name', 'gender', 'registration_type', 'institution_name', 'pondok_name', 'continue_url', 'receipt_url', 'parent_name', 'whatsapp', 'previous_school', 'registration_date'],
   FORM_INCOMPLETE: ['registration_number', 'student_name', 'parent_name', 'institution_name', 'continue_url'],
   DOCUMENT_REVISION_REQUIRED: ['registration_number', 'student_name', 'parent_name', 'institution_name', 'document_name', 'revision_note'],
   DOCUMENTS_VERIFIED: ['registration_number', 'student_name', 'parent_name', 'institution_name'],
@@ -19,6 +19,7 @@ const allVariables = [
   { key: 'institution_name', label: 'Nama Lembaga Formal' },
   { key: 'pondok_name', label: 'Nama Pondok Pesantren' },
   { key: 'continue_url', label: 'Tautan Lanjut Pendaftaran' },
+  { key: 'receipt_url', label: 'Tautan Bukti / Struk Pendaftaran' },
   { key: 'parent_name', label: 'Nama Orang Tua/Wali' },
   { key: 'whatsapp', label: 'Nomor WhatsApp' },
   { key: 'previous_school', label: 'Asal Sekolah' },

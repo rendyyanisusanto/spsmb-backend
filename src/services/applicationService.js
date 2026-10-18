@@ -1,3 +1,8 @@
+const path = require('path');
+const fs = require('fs').promises;
+const pool = require('../config/database');
+const auditService = require('./auditService');
+const { AUDIT_ACTIONS } = require('../constants/auditActions');
 const applicationRepository = require('../repositories/applicationRepository');
 const auditLogRepository = require('../repositories/auditLogRepository');
 
@@ -58,12 +63,16 @@ class ApplicationService {
       formalInstitution: app.formalInstitutionId ? {
         id: app.formalInstitutionId,
         code: app.formalInstitutionCode,
-        name: app.formalInstitutionName
+        name: app.formalInstitutionName,
+        logo: app.formalInstitutionLogo,
+        kop: app.formalInstitutionKop
       } : null,
       pondokInstitution: app.pondokInstitutionId ? {
         id: app.pondokInstitutionId,
         code: app.pondokInstitutionCode,
-        name: app.pondokInstitutionName
+        name: app.pondokInstitutionName,
+        logo: app.pondokInstitutionLogo,
+        kop: app.pondokInstitutionKop
       } : null,
       period: app.periodId ? {
         id: app.periodId,
@@ -74,6 +83,9 @@ class ApplicationService {
         name: app.waveName
       } : null,
       status: app.status,
+      whatsappStatus: app.whatsappStatus || 'UNSENT',
+      whatsappSentAt: app.whatsappSentAt || null,
+      whatsappError: app.whatsappError || null,
       stepCompleted: app.stepCompleted,
       createdAt: app.createdAt,
       updatedAt: app.updatedAt,
@@ -252,6 +264,9 @@ class ApplicationService {
         id: application.id,
         registrationNumber: application.registration_number,
         status: application.status,
+        whatsappStatus: application.whatsapp_status || 'UNSENT',
+        whatsappSentAt: application.whatsapp_sent_at || null,
+        whatsappError: application.whatsapp_error || null,
         stepCompleted: application.step_completed,
         registrationType: application.registration_type,
         createdAt: application.created_at,
@@ -276,12 +291,16 @@ class ApplicationService {
         formalInstitution: application.formal_institution_id ? {
           id: application.formal_institution_id,
           code: application.formal_institution_code,
-          name: application.formal_institution_name
+          name: application.formal_institution_name,
+          logo: application.formal_institution_logo,
+          kop: application.formal_institution_kop
         } : null,
         pondokInstitution: application.pondok_institution_id ? {
           id: application.pondok_institution_id,
           code: application.pondok_institution_code,
-          name: application.pondok_institution_name
+          name: application.pondok_institution_name,
+          logo: application.pondok_institution_logo,
+          kop: application.pondok_institution_kop
         } : null
       },
       applicant: {
@@ -350,6 +369,222 @@ class ApplicationService {
         createdAt: hist.createdAt
       };
     });
+  }
+
+  async resendApplicationWhatsapp(id, user, options = {}) {
+    const pool = require('../config/database');
+    const application = await applicationRepository.findApplicationById(id);
+    if (!application) {
+      const error = new Error('Data pendaftaran tidak ditemukan.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const scope = this._getInstitutionScope(user);
+    if (!this._checkScope(application, scope)) {
+      const error = new Error('Anda tidak memiliki akses ke pendaftaran ini.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const eventCode = application.status === 'SUBMITTED' 
+      ? 'REGISTRATION_SUBMITTED' 
+      : 'REGISTRATION_CREATED';
+
+    const continueTokenService = require('./continueTokenService');
+    const rawContinueToken = continueTokenService.generateToken();
+    const continueTokenHash = continueTokenService.hashToken(rawContinueToken);
+    const continueTokenExpiresAt = continueTokenService.getExpirationDate();
+    
+    await pool.query(
+      'UPDATE applications SET continue_token_hash = ?, continue_token_expires_at = ? WHERE id = ?',
+      [continueTokenHash, continueTokenExpiresAt, application.id]
+    );
+
+    const frontendBaseUrl = (process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',')[0].trim() : 'http://localhost:5173').replace(/\/+$/, '');
+    const resumeHash = Buffer.from(`${application.registration_number}::${rawContinueToken}`).toString('base64')
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+
+    const continueUrl = `${frontendBaseUrl}/pendaftaran/lanjut/${resumeHash}`;
+    const receiptUrl = `${frontendBaseUrl}/pendaftaran/lanjut/${resumeHash}?to=struk`;
+
+    // Fetch receipt data for struk
+    const publicApplicationService = require('./publicApplicationService');
+    let receiptData = null;
+    try {
+      receiptData = await publicApplicationService.getReceipt(application.registration_number, rawContinueToken);
+    } catch (_) {}
+
+    const notificationEngine = require('./notificationEngineService');
+    const result = await notificationEngine.processEvent(eventCode, application.id, {
+      forceResend: true,
+      continueToken: rawContinueToken,
+      resumeHash,
+      continueUrl,
+      receiptUrl,
+      receiptData,
+      includeReceipt: options.includeReceipt !== false,
+      includeContinueLink: options.includeContinueLink !== false,
+      customNote: options.customNote || '',
+      customMessage: options.customMessage || '',
+      recipientTypes: ['APPLICANT', 'GUARDIAN']
+    });
+
+    const responseData = {
+      ...result,
+      registrationNumber: application.registration_number,
+      continueToken: rawContinueToken,
+      resumeHash,
+      continueUrl,
+      receiptUrl,
+      receipt: receiptData
+    };
+
+    if (result.sent > 0) {
+      return {
+        success: true,
+        message: 'Pesan WhatsApp berhasil dikirim ulang ke pendaftar.',
+        data: responseData
+      };
+    } else {
+      const firstError = result.details.find(d => d.status === 'FAILED' || d.status === 'SKIPPED');
+      const reasonMsg = firstError?.error || firstError?.reason || result.reason || 'Gagal mengirim pesan WhatsApp';
+      return {
+        success: false,
+        message: `Gagal mengirim WhatsApp: ${reasonMsg}`,
+        data: responseData
+      };
+    }
+  }
+
+  async getResendPreview(id, user) {
+    const pool = require('../config/database');
+    const application = await applicationRepository.findApplicationById(id);
+    if (!application) {
+      const error = new Error('Data pendaftaran tidak ditemukan.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const scope = this._getInstitutionScope(user);
+    if (!this._checkScope(application, scope)) {
+      const error = new Error('Anda tidak memiliki akses ke pendaftaran ini.');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const continueTokenService = require('./continueTokenService');
+    const rawContinueToken = continueTokenService.generateToken();
+    const continueTokenHash = continueTokenService.hashToken(rawContinueToken);
+    const continueTokenExpiresAt = continueTokenService.getExpirationDate();
+    
+    await pool.query(
+      'UPDATE applications SET continue_token_hash = ?, continue_token_expires_at = ? WHERE id = ?',
+      [continueTokenHash, continueTokenExpiresAt, application.id]
+    );
+
+    const frontendBaseUrl = (process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',')[0].trim() : 'http://localhost:5173').replace(/\/+$/, '');
+    const resumeHash = Buffer.from(`${application.registration_number}::${rawContinueToken}`).toString('base64')
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+
+    const continueUrl = `${frontendBaseUrl}/pendaftaran/lanjut/${resumeHash}`;
+    const receiptUrl = `${frontendBaseUrl}/pendaftaran/lanjut/${resumeHash}?to=struk`;
+
+    const notificationRoutingService = require('./notificationRoutingService');
+    const context = await notificationRoutingService.getApplicationContext(application.id);
+
+    const eventCode = application.status === 'SUBMITTED' 
+      ? 'REGISTRATION_SUBMITTED' 
+      : 'REGISTRATION_CREATED';
+
+    const whatsappTemplateComposer = require('./whatsappTemplateComposer');
+    const composed = await whatsappTemplateComposer.composeForApplication(application.id, eventCode, {
+      context,
+      forceResend: true,
+      continueToken: rawContinueToken,
+      resumeHash,
+      continueUrl,
+      receiptUrl,
+      includeReceipt: true,
+      includeContinueLink: true
+    });
+
+    const publicApplicationService = require('./publicApplicationService');
+    let receiptData = null;
+    try {
+      receiptData = await publicApplicationService.getReceipt(application.registration_number, rawContinueToken);
+    } catch (_) {}
+
+    return {
+      applicationId: application.id,
+      registrationNumber: application.registration_number,
+      status: application.status,
+      studentName: context?.student_name || application.applicant?.fullName,
+      phone: context?.applicant_whatsapp || application.applicant?.whatsapp,
+      whatsappStatus: application.whatsapp_status,
+      continueToken: rawContinueToken,
+      resumeHash,
+      continueUrl,
+      receiptUrl,
+      receipt: receiptData,
+      previewMessage: composed.composedMessage
+    };
+  }
+
+  async deleteApplication(id, user, req) {
+    const application = await applicationRepository.findApplicationById(id);
+    if (!application) {
+      const error = new Error('Data pendaftaran tidak ditemukan');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const scope = this._getInstitutionScope(user);
+    if (!this._checkScope(application, scope)) {
+      const error = new Error('Anda tidak memiliki akses untuk menghapus pendaftar ini');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const applicant = await applicationRepository.findApplicantByApplicationId(application.id);
+    const applicantName = applicant?.full_name || 'Tanpa Nama';
+    const registrationNumber = application.registration_number;
+
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      await applicationRepository.deleteApplication(application.id, application.applicant_id, connection);
+
+      await auditService.log(
+        AUDIT_ACTIONS.DELETE,
+        'APPLICATION',
+        application.id,
+        `Menghapus pendaftar ${registrationNumber} (${applicantName})`,
+        req,
+        connection
+      );
+
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+
+    // Clean up physical document files if any
+    try {
+      const appStorageDir = path.join(process.cwd(), 'storage', 'applicant-documents', application.id.toString());
+      await fs.rm(appStorageDir, { recursive: true, force: true });
+    } catch (fsErr) {
+      console.warn('Gagal menghapus berkas fisik pendaftar:', fsErr.message);
+    }
+
+    return {
+      success: true,
+      message: `Data pendaftar ${applicantName} (${registrationNumber}) berhasil dihapus.`
+    };
   }
 }
 

@@ -48,17 +48,42 @@ const findByCode = async (code) => {
 };
 
 const createInstitution = async (data) => {
+  const isActive = data.is_active === true || data.is_active === 'true' || data.is_active === 1 || data.is_active === '1';
   const [result] = await pool.query(`
-    INSERT INTO institutions (code, name, institution_type, gender_scope, is_active)
-    VALUES (?, ?, ?, ?, ?)
-  `, [data.code, data.name, data.institution_type, data.gender_scope || 'ALL', data.is_active ? 1 : 0]);
+    INSERT INTO institutions (code, name, institution_type, gender_scope, logo_url, kop_url, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, [
+    data.code, 
+    data.name, 
+    data.institution_type, 
+    data.gender_scope || 'ALL', 
+    data.logo_url || null, 
+    data.kop_url || null, 
+    isActive ? 1 : 0
+  ]);
   return result.insertId;
 };
 
 const updateInstitution = async (id, data) => {
-  await pool.query(`
-    UPDATE institutions SET code=?, name=?, institution_type=?, gender_scope=? WHERE id=?
-  `, [data.code, data.name, data.institution_type, data.gender_scope, id]);
+  const fields = ['code = ?', 'name = ?', 'institution_type = ?', 'gender_scope = ?'];
+  const values = [data.code, data.name, data.institution_type, data.gender_scope];
+
+  if (data.logo_url !== undefined) {
+    fields.push('logo_url = ?');
+    values.push(data.logo_url);
+  }
+  if (data.kop_url !== undefined) {
+    fields.push('kop_url = ?');
+    values.push(data.kop_url);
+  }
+  if (data.is_active !== undefined) {
+    const isActive = data.is_active === true || data.is_active === 'true' || data.is_active === 1 || data.is_active === '1';
+    fields.push('is_active = ?');
+    values.push(isActive ? 1 : 0);
+  }
+
+  values.push(id);
+  await pool.query(`UPDATE institutions SET ${fields.join(', ')} WHERE id = ?`, values);
 };
 
 const updateStatus = async (id, isActive) => {

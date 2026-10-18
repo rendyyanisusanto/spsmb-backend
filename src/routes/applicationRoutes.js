@@ -13,5 +13,8 @@ router.get('/:id', applicationController.getApplicationDetail);
 router.get('/by-registration/:registrationNumber', applicationController.getApplicationByRegistrationNumber);
 router.get('/:id/status-history', applicationController.getStatusHistory);
 router.patch('/:id/status', applicationController.updateStatus);
+router.post('/:id/resend-whatsapp', applicationController.resendWhatsapp);
+router.get('/:id/resend-preview', applicationController.getResendPreview);
+router.delete('/:id', applicationController.deleteApplication);
 
 module.exports = router;
