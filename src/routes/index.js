@@ -22,6 +22,10 @@ const dashboardRoutes = require('./dashboardRoutes');
 const auditRoutes = require('./auditRoutes');
 const gowaRoutes = require('./gowaRoutes');
 const notificationRuleRoutes = require('./notificationRuleRoutes');
+const crmLeadRoutes = require('./crmLeadRoutes');
+const crmTemplateRoutes = require('./crmTemplateRoutes');
+const faqRoutes = require('./faqRoutes');
+const confirmationRoutes = require('./confirmationRoutes');
 
 router.get('/health', asyncHandler(async (req, res) => {
   let dbStatus = 'disconnected'
@@ -69,6 +73,10 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/audit-logs', auditRoutes);
 router.use('/gowa', gowaRoutes);
 router.use('/notification-rules', notificationRuleRoutes);
+router.use('/crm/leads', crmLeadRoutes);
+router.use('/crm/templates', crmTemplateRoutes);
+router.use('/faqs', faqRoutes);
+router.use('/confirmation', confirmationRoutes);
 
 
 

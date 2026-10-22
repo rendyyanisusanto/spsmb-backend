@@ -33,7 +33,7 @@ const findUserRoles = async (userId) => {
 
 const findUserInstitutions = async (userId) => {
   const query = `
-    SELECT i.id, i.name
+    SELECT i.id, i.name, i.code, i.institution_type
     FROM user_institutions ui
     JOIN institutions i ON ui.institution_id = i.id
     WHERE ui.user_id = ?

@@ -8,10 +8,17 @@ const publicLookupController = require('../controllers/publicLookupController');
 const publicApplicationController = require('../controllers/publicApplicationController');
 const publicApplicationFormController = require('../controllers/publicApplicationFormController');
 
+const faqController = require('../controllers/faqController');
+const publicLandingController = require('../controllers/publicLandingController');
+
 router.get('/institutions', institutionController.getPublicInstitutions);
 router.get('/settings', settingController.getPublicSettings);
 router.get('/registration-period', publicRegistrationController.getCurrentPeriod);
 router.get('/institutions/:institutionId/programs', programController.getPublicPrograms);
+
+// Sprint 3 Modul C: Public FAQ & Landing
+router.get('/faq', faqController.getPublicGlobalFaqs);
+router.get('/landing/:slug', publicLandingController.getLandingPage);
 
 router.get('/information-sources', publicLookupController.getInformationSources);
 router.post('/applications', publicApplicationController.createApplication);

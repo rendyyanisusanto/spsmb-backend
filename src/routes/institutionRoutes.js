@@ -33,6 +33,8 @@ const uploadFields = upload.fields([
   { name: 'kop', maxCount: 1 }
 ]);
 
+const publicLandingController = require('../controllers/publicLandingController');
+
 router.use(authenticate);
 router.use(authorize('SUPER_ADMIN', 'ADMIN_SPSMB'));
 
@@ -41,5 +43,12 @@ router.post('/', uploadFields, institutionController.createInstitution);
 router.get('/:id', institutionController.getInstitutionById);
 router.put('/:id', uploadFields, institutionController.updateInstitution);
 router.patch('/:id/status', institutionController.updateStatus);
+
+// Sprint 3 Modul C: Landing page management per institution
+router.get('/:id/landing-profile', publicLandingController.getAdminProfile);
+router.put('/:id/landing-profile', publicLandingController.updateAdminProfile);
+router.post('/:id/featured-programs', publicLandingController.addProgram);
+router.put('/:id/featured-programs/:programId', publicLandingController.updateProgram);
+router.delete('/:id/featured-programs/:programId', publicLandingController.deleteProgram);
 
 module.exports = router;

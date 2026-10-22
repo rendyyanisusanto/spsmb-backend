@@ -433,6 +433,26 @@ class ApplicationRepository {
       values.push(params.pondokInstitutionId);
     }
 
+    if (params.institutionId) {
+      where.push('(a.formal_institution_id = ? OR a.pondok_institution_id = ?)');
+      values.push(params.institutionId, params.institutionId);
+    }
+
+    if (params.lembaga) {
+      const lembaga = String(params.lembaga).trim();
+      if (lembaga && lembaga.toUpperCase() !== 'ALL' && lembaga !== 'Semua Lembaga') {
+        if (lembaga.toUpperCase() === 'NON FORMAL' || lembaga.toUpperCase() === 'NON_FORMAL') {
+          where.push("a.registration_type = 'NON_FORMAL'");
+        } else if (!isNaN(lembaga) && Number(lembaga) > 0) {
+          where.push('(a.formal_institution_id = ? OR a.pondok_institution_id = ?)');
+          values.push(Number(lembaga), Number(lembaga));
+        } else {
+          where.push('(fi.name = ? OR pi.name = ? OR fi.code = ? OR pi.code = ? OR a.registration_type = ?)');
+          values.push(lembaga, lembaga, lembaga, lembaga, lembaga);
+        }
+      }
+    }
+
     if (params.admissionPeriodId) {
       where.push('a.admission_period_id = ?');
       values.push(params.admissionPeriodId);

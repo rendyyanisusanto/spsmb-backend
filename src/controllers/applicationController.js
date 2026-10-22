@@ -13,6 +13,8 @@ class ApplicationController {
       registrationType: req.query.registrationType,
       formalInstitutionId: req.query.formalInstitutionId,
       pondokInstitutionId: req.query.pondokInstitutionId,
+      institutionId: req.query.institutionId,
+      lembaga: req.query.lembaga || req.query.institution,
       admissionPeriodId: req.query.admissionPeriodId,
       admissionWaveId: req.query.admissionWaveId,
       gender: req.query.gender,
@@ -35,6 +37,8 @@ class ApplicationController {
       registrationType: req.query.registrationType,
       formalInstitutionId: req.query.formalInstitutionId,
       pondokInstitutionId: req.query.pondokInstitutionId,
+      institutionId: req.query.institutionId,
+      lembaga: req.query.lembaga || req.query.institution,
       admissionPeriodId: req.query.admissionPeriodId,
       admissionWaveId: req.query.admissionWaveId,
       gender: req.query.gender,
@@ -86,6 +90,19 @@ class ApplicationController {
     }
   });
 
+  getApplicationForm = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    try {
+      const result = await applicationService.getApplicationForm(id, req.user);
+      return successResponse(res, 200, 'Application form retrieved successfully', result);
+    } catch (error) {
+      if (error.statusCode) {
+        return errorResponse(res, error.statusCode, error.message);
+      }
+      throw error;
+    }
+  });
+
   getStatusHistory = asyncHandler(async (req, res) => {
     const { id } = req.params;
     
@@ -117,6 +134,19 @@ class ApplicationController {
     } catch (error) {
       if (error.statusCode) {
         return errorResponse(res, error.statusCode, error.message);
+      }
+      throw error;
+    }
+  });
+
+  updateApplication = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    try {
+      const result = await applicationService.updateApplication(id, req.body, req.user, req);
+      return successResponse(res, 200, 'Data pendaftar berhasil diperbarui', result);
+    } catch (error) {
+      if (error.statusCode) {
+        return errorResponse(res, error.statusCode, error.message, error.errors);
       }
       throw error;
     }

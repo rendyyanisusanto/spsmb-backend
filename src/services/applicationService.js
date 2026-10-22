@@ -531,6 +531,331 @@ class ApplicationService {
     };
   }
 
+  async getApplicationForm(id, user) {
+    const application = await applicationRepository.findApplicationById(id);
+    if (!application) {
+      const error = new Error('Data pendaftaran tidak ditemukan');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const scope = this._getInstitutionScope(user);
+    if (!this._checkScope(application, scope)) {
+      const error = new Error('Anda tidak memiliki akses untuk formulir pendaftar ini');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const publicApplicationFormService = require('./publicApplicationFormService');
+    const formData = await publicApplicationFormService.getFormForApplication(application);
+    return formData;
+  }
+
+  async updateApplication(id, payload, user, req) {
+    const application = await applicationRepository.findApplicationById(id);
+    if (!application) {
+      const error = new Error('Data pendaftaran tidak ditemukan');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const scope = this._getInstitutionScope(user);
+    if (!this._checkScope(application, scope)) {
+      const error = new Error('Anda tidak memiliki akses untuk mengubah data pendaftar ini');
+      error.statusCode = 403;
+      throw error;
+    }
+
+    const applicant = await applicationRepository.findApplicantByApplicationId(application.id);
+    if (!applicant) {
+      const error = new Error('Data calon santri tidak ditemukan');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const formAwal = payload.initialForm || payload.formAwal || payload.applicant || payload;
+    const appData = payload.application || payload;
+    const guardiansData = payload.guardians;
+    const dynamicAnswers = payload.dynamicAnswers || [];
+
+    const fullNameInput = formAwal.fullName || formAwal.full_name || formAwal.namaLengkap;
+    if (fullNameInput !== undefined && (!fullNameInput || fullNameInput.trim() === '')) {
+      const error = new Error('Nama lengkap santri wajib diisi');
+      error.statusCode = 422;
+      throw error;
+    }
+
+    const formFieldBindings = require('../constants/formFieldBindings');
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      // 1. Prepare updates for applicants table
+      const applicantUpdates = {};
+      if (fullNameInput !== undefined) {
+        applicantUpdates.full_name = fullNameInput.trim();
+      }
+      if (formAwal.gender !== undefined || formAwal.jenisKelamin !== undefined) {
+        const gVal = formAwal.gender || formAwal.jenisKelamin;
+        applicantUpdates.gender = (gVal === 'L' || gVal === 'MALE') ? 'MALE' : ((gVal === 'P' || gVal === 'FEMALE') ? 'FEMALE' : gVal);
+      }
+      if (formAwal.whatsapp !== undefined || formAwal.phone !== undefined || formAwal.no_hp !== undefined) {
+        applicantUpdates.whatsapp = formAwal.whatsapp || formAwal.phone || formAwal.no_hp || null;
+      }
+      if (formAwal.address !== undefined || formAwal.alamat !== undefined) {
+        applicantUpdates.address = formAwal.address !== undefined ? formAwal.address : formAwal.alamat;
+      }
+      if (formAwal.previousSchool !== undefined || formAwal.previous_school !== undefined || formAwal.sekolahAsal !== undefined) {
+        applicantUpdates.previous_school = formAwal.previousSchool !== undefined ? formAwal.previousSchool : (formAwal.previous_school || formAwal.sekolahAsal);
+      }
+      if (formAwal.birthPlace !== undefined || formAwal.birth_place !== undefined || formAwal.tempatLahir !== undefined) {
+        applicantUpdates.birth_place = formAwal.birthPlace !== undefined ? formAwal.birthPlace : (formAwal.birth_place || formAwal.tempatLahir);
+      }
+      if (formAwal.birthDate !== undefined || formAwal.birth_date !== undefined || formAwal.tanggalLahir !== undefined) {
+        const rawDate = formAwal.birthDate !== undefined ? formAwal.birthDate : (formAwal.birth_date || formAwal.tanggalLahir);
+        applicantUpdates.birth_date = rawDate ? new Date(rawDate).toISOString().split('T')[0] : null;
+      }
+      if (formAwal.nik !== undefined) {
+        applicantUpdates.nik = formAwal.nik || null;
+      }
+      if (formAwal.nisn !== undefined) {
+        applicantUpdates.nisn = formAwal.nisn || null;
+      }
+      if (formAwal.informationSourceId !== undefined || formAwal.sumberInfo !== undefined) {
+        const val = formAwal.informationSourceId !== undefined ? formAwal.informationSourceId : formAwal.sumberInfo;
+        applicantUpdates.information_source_id = val ? Number(val) : null;
+      }
+      if (formAwal.informationSourceOther !== undefined || formAwal.sumberInfoLainnya !== undefined) {
+        applicantUpdates.information_source_other = (formAwal.informationSourceOther !== undefined ? formAwal.informationSourceOther : formAwal.sumberInfoLainnya) || null;
+      }
+
+      // 2. Prepare guardian updates (FATHER, MOTHER, GUARDIAN)
+      const guardianUpdates = {
+        FATHER: {},
+        MOTHER: {},
+        GUARDIAN: {}
+      };
+
+      // Form Awal parentName -> relationship: GUARDIAN
+      const parentNameInput = formAwal.parentName || formAwal.namaOrtu || formAwal.parent_name;
+      if (parentNameInput !== undefined) {
+        guardianUpdates.GUARDIAN.name = parentNameInput ? parentNameInput.trim() : null;
+      }
+
+      // Explicit guardians payload if provided
+      if (guardiansData && typeof guardiansData === 'object') {
+        const rels = ['FATHER', 'MOTHER', 'GUARDIAN'];
+        for (const rel of rels) {
+          const g = guardiansData[rel.toLowerCase()] || guardiansData[rel];
+          if (g && typeof g === 'object') {
+            if (g.name !== undefined) guardianUpdates[rel].name = g.name;
+            if (g.nik !== undefined) guardianUpdates[rel].nik = g.nik;
+            if (g.phone !== undefined || g.whatsapp !== undefined) guardianUpdates[rel].phone = g.phone || g.whatsapp;
+            if (g.occupation !== undefined || g.pekerjaan !== undefined) guardianUpdates[rel].occupation = g.occupation || g.pekerjaan;
+            if (g.education !== undefined || g.pendidikan !== undefined) guardianUpdates[rel].education = g.education || g.pendidikan;
+            if (g.income !== undefined || g.penghasilan !== undefined) guardianUpdates[rel].income = g.income || g.penghasilan;
+            if (g.address !== undefined || g.alamat !== undefined) guardianUpdates[rel].address = g.address || g.alamat;
+          }
+        }
+      }
+
+      // 3. Process dynamic answers and field bindings from Form Lengkap
+      let majorChoiceId = null;
+      const dynamicAnswersToUpsert = [];
+      const dynamicAnswersToDelete = [];
+
+      if (Array.isArray(dynamicAnswers)) {
+        for (const item of dynamicAnswers) {
+          const fieldId = item.fieldId || item.id;
+          const fieldCode = item.fieldCode || item.code;
+          let val = item.value !== undefined ? item.value : item.answer;
+
+          const binding = fieldCode ? formFieldBindings[fieldCode] : null;
+          if (binding) {
+            if (binding.source === 'APPLICANT') {
+              if (binding.column === 'birth_date' && val) {
+                val = new Date(val).toISOString().split('T')[0];
+              }
+              applicantUpdates[binding.column] = val || null;
+            } else if (binding.source === 'GUARDIAN') {
+              guardianUpdates[binding.relationship][binding.column] = val || null;
+            } else if (binding.source === 'MAJOR_CHOICE') {
+              majorChoiceId = val;
+            }
+          } else if (fieldId) {
+            if (val === null || val === undefined || val === '' || (Array.isArray(val) && val.length === 0)) {
+              dynamicAnswersToDelete.push(fieldId);
+            } else {
+              const strVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+              dynamicAnswersToUpsert.push({ fieldId, value: strVal });
+            }
+          }
+        }
+      }
+
+      // Execute Applicants Update
+      if (Object.keys(applicantUpdates).length > 0) {
+        const setClauses = [];
+        const values = [];
+        for (const [col, val] of Object.entries(applicantUpdates)) {
+          setClauses.push(`${col} = ?`);
+          values.push(val);
+        }
+        setClauses.push(`updated_at = NOW()`);
+        values.push(applicant.id);
+        await connection.query(
+          `UPDATE applicants SET ${setClauses.join(', ')} WHERE id = ?`,
+          values
+        );
+      }
+
+      // 4. Update applications table
+      const applicationUpdates = {};
+      const regTypeInput = formAwal.registrationType || formAwal.registration_type || formAwal.lembaga;
+      if (regTypeInput !== undefined) {
+        applicationUpdates.registration_type = regTypeInput;
+      }
+      if (formAwal.formalInstitutionId !== undefined || formAwal.formal_institution_id !== undefined) {
+        const val = formAwal.formalInstitutionId !== undefined ? formAwal.formalInstitutionId : formAwal.formal_institution_id;
+        applicationUpdates.formal_institution_id = val ? Number(val) : null;
+      }
+      if (formAwal.pondokInstitutionId !== undefined || formAwal.pondok_institution_id !== undefined) {
+        const val = formAwal.pondokInstitutionId !== undefined ? formAwal.pondokInstitutionId : formAwal.pondok_institution_id;
+        applicationUpdates.pondok_institution_id = val ? Number(val) : null;
+      }
+
+      const targetStatus = formAwal.status || appData.status;
+      if (targetStatus && targetStatus !== application.status) {
+        if (!['DRAFT', 'SUBMITTED', 'CANCELLED'].includes(targetStatus)) {
+          const error = new Error('Status tidak valid');
+          error.statusCode = 422;
+          throw error;
+        }
+        applicationUpdates.status = targetStatus;
+        if (targetStatus === 'SUBMITTED' && !application.submitted_at) {
+          applicationUpdates.submitted_at = new Date();
+        }
+
+        const ipAddress = req?.ip || req?.connection?.remoteAddress;
+        const userAgent = req?.headers ? req.headers['user-agent'] : null;
+        await auditLogRepository.create({
+          user_id: user.id,
+          action: 'STATUS_CHANGE',
+          entity_type: 'APPLICATION',
+          entity_id: application.id,
+          description: `Status application diubah dari ${application.status} menjadi ${targetStatus}.`,
+          ip_address: ipAddress,
+          user_agent: userAgent
+        }, connection);
+      }
+
+      if (Object.keys(applicationUpdates).length > 0) {
+        const setClauses = [];
+        const values = [];
+        for (const [col, val] of Object.entries(applicationUpdates)) {
+          setClauses.push(`${col} = ?`);
+          values.push(val);
+        }
+        setClauses.push(`updated_at = NOW()`);
+        values.push(application.id);
+        await connection.query(
+          `UPDATE applications SET ${setClauses.join(', ')} WHERE id = ?`,
+          values
+        );
+      }
+
+      // 5. Execute Guardian updates
+      for (const [rel, updates] of Object.entries(guardianUpdates)) {
+        if (Object.keys(updates).length > 0) {
+          const [checkGuardian] = await connection.query(
+            `SELECT id FROM applicant_guardians WHERE applicant_id = ? AND relationship = ?`,
+            [applicant.id, rel]
+          );
+
+          if (checkGuardian.length > 0) {
+            const setClauses = [];
+            const values = [];
+            for (const [col, val] of Object.entries(updates)) {
+              setClauses.push(`${col} = ?`);
+              values.push(val);
+            }
+            if (setClauses.length > 0) {
+              values.push(checkGuardian[0].id);
+              await connection.query(
+                `UPDATE applicant_guardians SET ${setClauses.join(', ')} WHERE id = ?`,
+                values
+              );
+            }
+          } else if (updates.name) {
+            const cols = ['applicant_id', 'relationship'];
+            const vals = [applicant.id, rel];
+            for (const [col, val] of Object.entries(updates)) {
+              cols.push(col);
+              vals.push(val);
+            }
+            const placeholders = cols.map(() => '?').join(', ');
+            await connection.query(
+              `INSERT INTO applicant_guardians (${cols.join(', ')}) VALUES (${placeholders})`,
+              vals
+            );
+          }
+        }
+      }
+
+      // 6. Major Choice Upsert
+      if (majorChoiceId !== null) {
+        await connection.query(
+          `DELETE FROM application_major_choices WHERE application_id = ? AND priority = 1`,
+          [application.id]
+        );
+        if (majorChoiceId) {
+          await connection.query(
+            `INSERT INTO application_major_choices (application_id, major_id, priority) VALUES (?, ?, 1)`,
+            [application.id, majorChoiceId]
+          );
+        }
+      }
+
+      // 7. Dynamic Answers Delete
+      if (dynamicAnswersToDelete.length > 0) {
+        await connection.query(
+          `DELETE FROM application_answers WHERE application_id = ? AND form_field_id IN (?)`,
+          [application.id, dynamicAnswersToDelete]
+        );
+      }
+
+      // 8. Dynamic Answers Upsert
+      for (const ans of dynamicAnswersToUpsert) {
+        await connection.query(
+          `INSERT INTO application_answers (application_id, form_field_id, answer_value) 
+           VALUES (?, ?, ?) 
+           ON DUPLICATE KEY UPDATE answer_value = VALUES(answer_value), updated_at = CURRENT_TIMESTAMP`,
+          [application.id, ans.fieldId, ans.value]
+        );
+      }
+
+      // 9. Audit Log for General Update
+      const applicantName = applicantUpdates.full_name || applicant.full_name;
+      await auditService.log(
+        AUDIT_ACTIONS.UPDATE,
+        'APPLICATION',
+        application.id,
+        `Memperbarui data pendaftar ${application.registration_number} (${applicantName})`,
+        req,
+        connection
+      );
+
+      await connection.commit();
+    } catch (err) {
+      await connection.rollback();
+      throw err;
+    } finally {
+      connection.release();
+    }
+
+    return await this.getApplicationDetail(id, user);
+  }
+
   async deleteApplication(id, user, req) {
     const application = await applicationRepository.findApplicationById(id);
     if (!application) {

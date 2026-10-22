@@ -5,9 +5,10 @@ const errorHandler = (err, req, res, next) => {
     console.error('[Error Details]:', err)
   }
 
-  // Handle custom thrown errors (e.g. { status: 400, message: "..." })
-  if (err.status) {
-    return errorResponse(res, err.status, err.message, err.errors || null)
+  // Handle custom thrown errors (e.g. { status: 400, message: "..." } or err.statusCode)
+  const status = err.status || err.statusCode;
+  if (status) {
+    return errorResponse(res, status, err.message, err.errors || null)
   }
 
   // Handle specific errors (e.g., Validation Error)

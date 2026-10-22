@@ -33,5 +33,13 @@ module.exports = {
   guardian_address: { source: 'GUARDIAN', relationship: 'GUARDIAN', column: 'address' },
 
   // MAJOR CHOICE
-  major_choice: { source: 'MAJOR_CHOICE' }
+  major_choice: { source: 'MAJOR_CHOICE' },
+
+  // INDONESIAN ALIASES
+  nama_ayah: { source: 'GUARDIAN', relationship: 'FATHER', column: 'name' },
+  nik_ayah: { source: 'GUARDIAN', relationship: 'FATHER', column: 'nik' },
+  nama_ibu: { source: 'GUARDIAN', relationship: 'MOTHER', column: 'name' },
+  nik_ibu: { source: 'GUARDIAN', relationship: 'MOTHER', column: 'nik' },
+  nama_wali: { source: 'GUARDIAN', relationship: 'GUARDIAN', column: 'name' },
+  nik_wali: { source: 'GUARDIAN', relationship: 'GUARDIAN', column: 'nik' }
 };
