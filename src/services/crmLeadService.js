@@ -33,7 +33,13 @@ class CrmLeadService {
             page: Number(params.page) || 1,
             limit: Number(params.limit) || 10,
             total: 0,
-            totalPages: 0
+            totalPages: 0,
+            stats: {
+              total: 0,
+              newCount: 0,
+              inProgress: 0,
+              converted: 0
+            }
           }
         };
       }
@@ -55,8 +61,11 @@ class CrmLeadService {
     params.page = page;
     params.limit = limit;
 
-    const leads = await crmLeadRepository.findLeads(params);
-    const total = await crmLeadRepository.countLeads(params);
+    const [leads, total, stats] = await Promise.all([
+      crmLeadRepository.findLeads(params),
+      crmLeadRepository.countLeads(params),
+      crmLeadRepository.getLeadStats(params)
+    ]);
 
     const formattedLeads = leads.map(l => ({
       id: l.id,
@@ -103,9 +112,38 @@ class CrmLeadService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit)
+        totalPages: Math.ceil(total / limit),
+        stats
       }
     };
+  }
+
+  async getLeadStats(params = {}, user) {
+    const scope = this._getInstitutionScope(user);
+
+    if (scope !== null) {
+      if (scope.length === 0) {
+        return {
+          total: 0,
+          newCount: 0,
+          inProgress: 0,
+          converted: 0
+        };
+      }
+
+      if (params.institutionId) {
+        const requestedId = Number(params.institutionId);
+        if (!scope.map(Number).includes(requestedId)) {
+          const err = new Error('Anda tidak memiliki izin untuk melihat data lembaga ini.');
+          err.statusCode = 403;
+          throw err;
+        }
+      } else {
+        params.institutionScope = scope;
+      }
+    }
+
+    return await crmLeadRepository.getLeadStats(params);
   }
 
   async getLeadById(id, user) {

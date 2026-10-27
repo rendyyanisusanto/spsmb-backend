@@ -21,6 +21,7 @@ router.post('/import', upload.single('file'), crmLeadController.importLeads);
 // Lookup endpoints
 router.get('/statuses', crmLeadController.getStatusOptions);
 router.get('/officers', crmLeadController.getOfficerOptions);
+router.get('/stats', crmLeadController.getLeadStats);
 
 // Lead CRUD & Status
 router.get('/', crmLeadController.getLeads);

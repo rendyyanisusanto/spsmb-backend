@@ -19,6 +19,17 @@ class CrmLeadController {
     return successListResponse(res, 200, 'Data lead berhasil diambil.', result.data, result.meta);
   });
 
+  getLeadStats = asyncHandler(async (req, res) => {
+    const params = {
+      institutionId: req.query.institutionId,
+      leadByUserId: req.query.leadByUserId,
+      search: req.query.search
+    };
+
+    const stats = await crmLeadService.getLeadStats(params, req.user);
+    return successResponse(res, 200, 'Statistik lead berhasil diambil.', stats);
+  });
+
   getLeadById = asyncHandler(async (req, res) => {
     const lead = await crmLeadService.getLeadById(req.params.id, req.user);
     return successResponse(res, 200, 'Detail lead berhasil diambil.', lead);

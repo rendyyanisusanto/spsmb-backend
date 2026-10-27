@@ -125,6 +125,34 @@ class CrmLeadRepository {
     return rows[0]?.total || 0;
   }
 
+  async getLeadStats(filters = {}) {
+    const statsFilters = { ...filters };
+    delete statsFilters.status;
+    delete statsFilters.page;
+    delete statsFilters.limit;
+    delete statsFilters.sortBy;
+    delete statsFilters.sortOrder;
+
+    const { where, params } = this._buildWhereClause(statsFilters);
+    const query = `
+      SELECT 
+        COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN cl.status = 'NEW' THEN 1 ELSE 0 END), 0) AS new_count,
+        COALESCE(SUM(CASE WHEN cl.status IN ('CONTACTED', 'INTERESTED', 'FOLLOW_UP', 'READY_TO_REGISTER') THEN 1 ELSE 0 END), 0) AS in_progress,
+        COALESCE(SUM(CASE WHEN cl.status = 'CONVERTED' THEN 1 ELSE 0 END), 0) AS converted
+      FROM crm_leads cl
+      ${where}
+    `;
+    const [rows] = await pool.query(query, params);
+    const row = rows[0] || {};
+    return {
+      total: Number(row.total) || 0,
+      newCount: Number(row.new_count) || 0,
+      inProgress: Number(row.in_progress) || 0,
+      converted: Number(row.converted) || 0
+    };
+  }
+
   async findLeadById(id, connection = null) {
     const db = connection || pool;
     const query = `
