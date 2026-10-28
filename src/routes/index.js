@@ -24,6 +24,7 @@ const gowaRoutes = require('./gowaRoutes');
 const notificationRuleRoutes = require('./notificationRuleRoutes');
 const crmLeadRoutes = require('./crmLeadRoutes');
 const crmTemplateRoutes = require('./crmTemplateRoutes');
+const crmSchoolRoutes = require('./crmSchoolRoutes');
 const faqRoutes = require('./faqRoutes');
 const confirmationRoutes = require('./confirmationRoutes');
 
@@ -75,6 +76,7 @@ router.use('/gowa', gowaRoutes);
 router.use('/notification-rules', notificationRuleRoutes);
 router.use('/crm/leads', crmLeadRoutes);
 router.use('/crm/templates', crmTemplateRoutes);
+router.use('/crm/schools', crmSchoolRoutes);
 router.use('/faqs', faqRoutes);
 router.use('/confirmation', confirmationRoutes);
 
